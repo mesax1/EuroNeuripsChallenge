@@ -7,6 +7,7 @@
 #include "Individual.h"
 #include "CircleSector.h"
 #include "Params.h"
+#include <experimental/random>
 
 bool operator==(const TimeWindowData& twData1, const TimeWindowData& twData2)
 {
@@ -387,8 +388,11 @@ void LocalSearch::run(Individual* indiv, double penaltyCapacityLS, double penalt
 		}
 
 		/* (SWAP*) MOVES LIMITED TO ROUTE PAIRS WHOSE CIRCLE SECTORS OVERLAP */
+		
 		if (!neverIntensify && searchCompleted && (alwaysIntensify || runLS_INT))
-		{
+		{ 
+			if (params->rng() % 100  > 80)
+			{
 			for (int rU = 0; rU < params->nbVehicles; rU++)
 			{
 				routeU = &routes[orderRoutes[rU]];
@@ -428,7 +432,9 @@ void LocalSearch::run(Individual* indiv, double penaltyCapacityLS, double penalt
 					}
 				}
 			}
+			}
 		}
+		
 	}
 
 	// Register the solution produced by the LS in the individual

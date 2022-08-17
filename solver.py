@@ -132,6 +132,7 @@ def run_baseline(args, env, oracle_solution=None, strategy=None):
             epoch_solution, cost = solutions[-1]
 
             # Map HGS solution to indices of corresponding requests
+            unchanged_epoch_solution = list(epoch_solution)
             epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in epoch_solution]
         
         if args.verbose:
@@ -139,7 +140,10 @@ def run_baseline(args, env, oracle_solution=None, strategy=None):
             num_requests_open = len(epoch_instance['request_idx']) - 1
             num_requests_postponed = num_requests_open - num_requests_dispatched
             log(f" {num_requests_dispatched:3d}/{num_requests_open:3d} dispatched and {num_requests_postponed:3d}/{num_requests_open:3d} postponed | Routes: {len(epoch_solution):2d} with cost {cost:6d}")
-
+            #log(f" Instance capacity: {epoch_instance['capacity']}")
+            #[log(f" Route {route} Demands {sum(epoch_instance['demands'][route])}") for route in unchanged_epoch_solution]
+            #[log(f" Route {route} Cost {tools.compute_route_driving_time(route, epoch_instance['duration_matrix'])}") for route in unchanged_epoch_solution]
+            
         # Submit solution to environment
         observation, reward, done, info = env.step(epoch_solution)
         assert cost is None or reward == -cost, "Reward should be negative cost of solution"
@@ -165,7 +169,7 @@ def log(obj, newline=True, flush=False):
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
-    parser.add_argument("--strategy", type=str, default='greedy', help="Baseline strategy used to decide whether to dispatch routes")
+    parser.add_argument("--strategy", type=str, default='modifiedknearest', help="Baseline strategy used to decide whether to dispatch routes")
     # Note: these arguments are only for convenience during development, during testing you should use controller.py
     parser.add_argument("--instance", help="Instance to solve")
     parser.add_argument("--instance_seed", type=int, default=1, help="Seed to use for the dynamic instance")
