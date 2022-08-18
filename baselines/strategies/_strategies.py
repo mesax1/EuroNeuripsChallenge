@@ -32,11 +32,26 @@ def get_time_neighbors(duration_matrix, i, num_neighbors):
         neighbors.append(distances[i][0])
     return neighbors
 
+# Locate the k furthest neighbors
+def get_furthest_neighbors(duration_matrix, i, num_neighbors):
+    distances = list()
+    for j in range(len(duration_matrix)):
+        dist = duration_matrix[i][j] + duration_matrix[j][i]
+        distances.append((j, dist))
+    distances.sort(key=lambda tup: tup[1], reverse=True)
+    neighbors = list()
+    max_neighbors = min(num_neighbors, len(duration_matrix))
+    for i in range(max_neighbors):
+        neighbors.append(distances[i][0])
+    return neighbors
+
+
 def _greedy(observation: State, rng: np.random.Generator):
     return {
         **observation,
         'must_dispatch': np.ones_like(observation['must_dispatch']).astype(np.bool8)
     }
+
 
 
 def _lazy(observation: State, rng: np.random.Generator):
@@ -149,7 +164,7 @@ def _knearest_time(observation: State, rng: np.random.Generator):
     
     return _filter_instance(observation, mask)
 
-def _modified_knearest_time(observation: State, rng: np.random.Generator):
+def _modified_knearest_time(observation: State, rng: np.random.Generator, current_epoch: int, end_epoch: int):
     mask = np.copy(observation['must_dispatch'])
     new_mask = np.copy(observation['must_dispatch'])
     mask[0] = True
@@ -188,12 +203,17 @@ def _modified_knearest_time(observation: State, rng: np.random.Generator):
         return new_mask
     
     # Obtain k neighbors for each customer with 'must_dispatch'
-    k = 6
+    k = 7
+    #k = min(6,len(observation['must_dispatch'])//(sum(new_mask)))
+    #k = end_epoch + 1 - current_epoch//3
+    #k = max(end_epoch, end_epoch +6 - current_epoch)
     new_mask = modify_mask_of_neighbors(new_mask, k)
+    
     
     limit_iterations = 0
     while (sum(new_mask) < len(observation['must_dispatch'])*.95):
-        k = k+1
+        #k = max(6,len(observation['must_dispatch'])//(sum(new_mask)//2))
+        k = k - 1 
         new_mask = modify_mask_of_neighbors(new_mask, k)
         limit_iterations += 1
         if limit_iterations >= 1:
@@ -202,7 +222,7 @@ def _modified_knearest_time(observation: State, rng: np.random.Generator):
     
     return _filter_instance(observation, new_mask)
 
-def _find_solitary(observation: State, rng: np.random.Generator):
+def _find_solitary(observation: State, rng: np.random.Generator, current_epoch: int, end_epoch: int):
     mask = np.copy(observation['must_dispatch'])
     mask[0] = True
     
@@ -246,11 +266,7 @@ def _find_solitary(observation: State, rng: np.random.Generator):
         for i in range(len(observation['must_dispatch'])):
             if mask[i] == True:
                 if i == 0: #If depot
-                    must_dispatches = sum(mask)
-                    if must_dispatches < 10:
-                        neighbors = get_time_neighbors(observation['duration_matrix'], i, k)
-                        for neighbor in neighbors:
-                            new_mask[neighbor] = True
+                    continue
                 else:
                     neighbors = get_time_neighbors(observation['duration_matrix'], i, k)
                     for neighbor in neighbors:
@@ -259,14 +275,15 @@ def _find_solitary(observation: State, rng: np.random.Generator):
     
     #Execute
     [q_10, q_15, q_25, q_50, q_75] = get_radius_quantiles(observation['duration_matrix'])
-    threshold = len(observation['must_dispatch'])//6
-    #threshold = 15
+    threshold = len(observation['must_dispatch'])//5
     radius = q_10
     mask = modify_mask_of_customers(mask, radius, threshold)
     new_mask = np.copy(mask)
     
     # Obtain k neighbors for each customer with 'must_dispatch'
-    k = 2
+    k = 6
+    k = current_epoch + 3
+    k = end_epoch + 2 - current_epoch//2
     new_mask = modify_mask_of_neighbors(new_mask, k)
     
     limit_iterations = 0
@@ -274,7 +291,7 @@ def _find_solitary(observation: State, rng: np.random.Generator):
         k = k+1
         new_mask = modify_mask_of_neighbors(new_mask, k)
         limit_iterations += 1
-        if limit_iterations >= 4:
+        if limit_iterations >= 1:
             break
     
     
