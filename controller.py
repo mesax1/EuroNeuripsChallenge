@@ -85,3 +85,6 @@ if __name__ == "__main__":
     print(f"Cost of solution: {sum(env.final_costs.values())}")
     print("Solution:")
     print(tools.json_dumps_np(env.final_solutions))
+    f = open("results.txt", "a")
+    f.write(f"Instance: {args.instance}, Cost of solution: {sum(env.final_costs.values())}")
+    f.close()
