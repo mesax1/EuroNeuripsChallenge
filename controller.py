@@ -95,6 +95,6 @@ if __name__ == "__main__":
 
     f = open("results.txt", "a")
     f.write(f"\nInstance: {entries[int(args.instance)]}, Method: "
-            f"{args.verbose.strategy},  Cost of solution: {sum(env.final_costs.values())}, Time: "
+            f"{solver_cmd[-1]},  Cost of solution: {sum(env.final_costs.values())}, Time: "
             f"{current_time}")
     f.close()
