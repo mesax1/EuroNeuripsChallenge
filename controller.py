@@ -7,6 +7,7 @@ import sys
 import numpy as np
 import threading
 from environment import VRPEnvironment
+import os
 
 
 if __name__ == "__main__":
@@ -28,7 +29,9 @@ if __name__ == "__main__":
     solver_cmd = sys.argv[split_idx+1:]
 
     # Load instance
-    static_instance = tools.read_vrplib(args.instance)
+    entries = os.listdir('instances/')
+    static_instance = tools.read_vrplib(f"instances/{entries[int(args.instance)]}")
+    #static_instance = tools.read_vrplib(args.instance)
 
     # Create environment
     env = VRPEnvironment(args.instance_seed, static_instance, args.epoch_tlim, args.static)
@@ -86,5 +89,5 @@ if __name__ == "__main__":
     print("Solution:")
     print(tools.json_dumps_np(env.final_solutions))
     f = open("results.txt", "a")
-    f.write(f"Instance: {args.instance}, Cost of solution: {sum(env.final_costs.values())}")
+    f.write(f"\nInstance: {args.instance}, Cost of solution: {sum(env.final_costs.values())}")
     f.close()
