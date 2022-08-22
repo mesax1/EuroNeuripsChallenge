@@ -31,7 +31,7 @@ if __name__ == "__main__":
 
     # Load instance
     entries = os.listdir('/home/auribev1/EuroNeuripsChallenge/instances/')
-    static_instance = tools.read_vrplib(f"instances/{entries[int(args.instance)]}")
+    static_instance = tools.read_vrplib(f"/home/auribev1/EuroNeuripsChallenge/instances/{entries[int(args.instance)]}")
     #static_instance = tools.read_vrplib(args.instance)
 
     # Create environment
