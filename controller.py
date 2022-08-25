@@ -30,8 +30,8 @@ if __name__ == "__main__":
     solver_cmd = sys.argv[split_idx+1:]
 
     # Load instance
-    entries = os.listdir('/home/auribev1/EuroNeuripsChallenge/instances/')
-    static_instance = tools.read_vrplib(f"/home/auribev1/EuroNeuripsChallenge/instances/{entries[int(args.instance)]}")
+    entries = os.listdir('instances/')
+    static_instance = tools.read_vrplib(f"instances/{entries[int(args.instance)]}")
     #static_instance = tools.read_vrplib(args.instance)
 
     # Create environment
@@ -93,8 +93,8 @@ if __name__ == "__main__":
     now = datetime.now()
     current_time = now.strftime("%m, %d, %y, %H:%M:%S")
 
-    f = open("/home/auribev1/EuroNeuripsChallenge/results.txt", "a")
+    f = open("results.txt", "a")
     f.write(f"\nInstance: {entries[int(args.instance)]}, Method: "
-            f"{solver_cmd[-1]},  Cost of solution: {sum(env.final_costs.values())}, Time: "
-            f"{current_time}")
+            f"{solver_cmd[-1]}, Time: {current_time}, "
+            f"Cost_of_solution: {sum(env.final_costs.values())}")
     f.close()
