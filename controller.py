@@ -8,7 +8,7 @@ import numpy as np
 import threading
 from environment import VRPEnvironment
 import os
-from datetime import datetime
+
 
 
 if __name__ == "__main__":
@@ -90,11 +90,6 @@ if __name__ == "__main__":
     print("Solution:")
     print(tools.json_dumps_np(env.final_solutions))
 
-    now = datetime.now()
-    current_time = now.strftime("%m, %d, %y, %H:%M:%S")
-
-    f = open("results.txt", "a")
-    f.write(f"\nInstance: {entries[int(args.instance)]}, Method: "
-            f"{solver_cmd[-1]}, Time: {current_time}, "
-            f"Cost_of_solution: {sum(env.final_costs.values())}")
+    f = open("aux.txt", "a")
+    f.write(f"{sum(env.final_costs.values())}\n")
     f.close()
