@@ -10,7 +10,7 @@ if action == "w":
     f.close()
 
 elif action == "r":
-    method = int(sys.argv[2])
+    method = sys.argv[2]
     results = []
     f = open("aux.txt", "r")
     for y in f.read().split('\n'):
