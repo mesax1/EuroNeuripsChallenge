@@ -1,6 +1,7 @@
 from datetime import datetime
 import sys
 import numpy as np
+import os
 
 action = sys.argv[1]
 
@@ -16,10 +17,11 @@ elif action == "r":
     for y in f.read().split('\n'):
         if y.isdigit():
             results.append(float(y))
+    os.remove("aux.txt")
     score = np.mean(results)
     now = datetime.now()
     current_time = now.strftime("%m, %d, %y, %H:%M:%S")
     r = open("results.txt", "a")
-    f.write(f"Time: {current_time}, Method:{method}, Cost_of_solution: {score}")
-    f.close()
+    r.write(f"Time: {current_time}, Method:{method}, Cost_of_solution: {score}")
+    r.close()
 
