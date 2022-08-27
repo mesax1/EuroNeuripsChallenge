@@ -2,7 +2,7 @@ from datetime import datetime
 import sys
 import numpy as np
 
-action = int(sys.argv[1])
+action = sys.argv[1]
 
 
 if action == "w":
