@@ -122,12 +122,28 @@ def run_baseline(args, env, oracle_solution=None, strategy=None):
         else:
             # Select the requests to dispatch using the strategy
             # TODO improved better strategy (machine learning model?) to decide which non-must requests to dispatch
-            epoch_instance_dispatch = STRATEGIES[strategy](epoch_instance, rng, observation['current_epoch'], static_info['end_epoch'])
+            # epoch_instance_dispatch = STRATEGIES[strategy](epoch_instance, rng, observation['current_epoch'], static_info['end_epoch'])
 
             # Run HGS with time limit and get last solution (= best solution found)
             # Note we use the same solver_seed in each epoch: this is sufficient as for the static problem
             # we will exactly use the solver_seed whereas in the dynamic problem randomness is in the instance
+            # solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=epoch_tlim, tmp_dir=args.tmp_dir, seed=args.solver_seed))
+            
+            #Se prueba la idea de la reunion 28 agosto
+            
+            client_id = dict()
+            for xi in range(len(epoch_instance['request_idx'])):
+                client_id[epoch_instance['request_idx'][xi]] = xi
+            
+            epoch_instance_dispatch = STRATEGIES['getMustDispatch'](epoch_instance, rng)
+            solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=5, tmp_dir=args.tmp_dir, seed=args.solver_seed))
+            partial_epoch_solution, partial_cost = solutions[-1]
+            partial_epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in partial_epoch_solution]
+            epoch_instance_dispatch = STRATEGIES['f1'](epoch_instance, rng, partial_epoch_solution, client_id)
             solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=epoch_tlim, tmp_dir=args.tmp_dir, seed=args.solver_seed))
+
+            #------------------
+            
             assert len(solutions) > 0, f"No solution found during epoch {observation['current_epoch']}"
             epoch_solution, cost = solutions[-1]
 
@@ -141,10 +157,10 @@ def run_baseline(args, env, oracle_solution=None, strategy=None):
             num_requests_postponed = num_requests_open - num_requests_dispatched
             log(f" {num_requests_dispatched:3d}/{num_requests_open:3d} dispatched and {num_requests_postponed:3d}/{num_requests_open:3d} postponed | Routes: {len(epoch_solution):2d} with cost {cost:6d}")
             #log(f" Epoch number: {observation['current_epoch']}")
-            #log(f" Instance capacity: {epoch_instance['capacity']}")
-            #[log(f" Route {route} Demands {sum(epoch_instance['demands'][route])}") for route in unchanged_epoch_solution]
+            log(f" Instance capacity: {epoch_instance['capacity']}")
+            [log(f" Route {route} Demands {sum(epoch_instance['demands'][route])}") for route in unchanged_epoch_solution]
             #[log(f" Route {route} Cost {tools.compute_route_driving_time(route, epoch_instance['duration_matrix'])}") for route in unchanged_epoch_solution]
-            
+            log("----------------------------------------------------------------------------------------------------------")
         # Submit solution to environment
         observation, reward, done, info = env.step(epoch_solution)
         assert cost is None or reward == -cost, "Reward should be negative cost of solution"

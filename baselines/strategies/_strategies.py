@@ -1,11 +1,14 @@
+from hashlib import new
+from xml.dom.minidom import Element
 import numpy as np
 from environment import State
-
+import sys
+from functools import cmp_to_key
 
 def _filter_instance(observation: State, mask: np.ndarray):
     res = {}
 
-    for key, value in observation.items():
+    for key, value in observation.items(): 
         if key == 'capacity':
             res[key] = value
             continue
@@ -164,7 +167,8 @@ def _knearest_time(observation: State, rng: np.random.Generator):
     
     return _filter_instance(observation, mask)
 
-def _modified_knearest_time(observation: State, rng: np.random.Generator, current_epoch: int, end_epoch: int):
+def _modified_knearest_time(observation: State, rng: np.random.Generator):
+    #log(observation)
     mask = np.copy(observation['must_dispatch'])
     new_mask = np.copy(observation['must_dispatch'])
     mask[0] = True
@@ -173,16 +177,16 @@ def _modified_knearest_time(observation: State, rng: np.random.Generator, curren
         
     
     # Locate the k furthest neighbors
-    def get_furthest_neighbors(duration_matrix, i, num_neighbors):
-    	distances = list()
-    	for j in range(len(duration_matrix)):
-            dist = duration_matrix[i][j] + duration_matrix[j][i]
-            distances.append((j, dist))
-    	distances.sort(key=lambda tup: tup[1], reverse=True)
-    	neighbors = list()
-    	for i in range(num_neighbors):
-    		neighbors.append(distances[i][0])
-    	return neighbors
+    # def get_furthest_neighbors(duration_matrix, i, num_neighbors):
+    # 	distances = list()
+    # 	for j in range(len(duration_matrix)):
+    #         dist = duration_matrix[i][j] + duration_matrix[j][i]
+    #         distances.append((j, dist))
+    # 	distances.sort(key=lambda tup: tup[1], reverse=True)
+    # 	neighbors = list()
+    # 	for i in range(num_neighbors):
+    # 		neighbors.append(distances[i][0])
+    # 	return neighbors
     
     
     def modify_mask_of_neighbors(mask, k):
@@ -222,7 +226,7 @@ def _modified_knearest_time(observation: State, rng: np.random.Generator, curren
     
     return _filter_instance(observation, new_mask)
 
-def _find_solitary(observation: State, rng: np.random.Generator, current_epoch: int, end_epoch: int):
+def _find_solitary(observation: State, rng: np.random.Generator):
     mask = np.copy(observation['must_dispatch'])
     mask[0] = True
     
@@ -298,6 +302,124 @@ def _find_solitary(observation: State, rng: np.random.Generator, current_epoch: 
     return _filter_instance(observation, new_mask)
     
 
+def log(obj, newline=True, flush=False):
+    # Write logs to stderr since program uses stdout to communicate with controller
+    sys.stderr.write(str(obj))
+    if newline:
+        sys.stderr.write('\n')
+    if flush:
+        sys.stderr.flush()
+        
+
+def _get_must_dispatch(observation: State, rng: np.random.Generator): #Si no hay must_dispatch obligatorios obtengo los 10 nearest
+    # log(observation['request_idx'])
+    new_mask = np.copy(observation['must_dispatch'])
+    new_mask[0] = True
+    
+    if(sum(new_mask) < 10):
+        neighbors = get_time_neighbors(observation['duration_matrix'], 0, 10)
+        for neighbor in neighbors:
+            new_mask[neighbor] = True
+        
+    return _filter_instance(observation, new_mask)
+
+    
+class Route_info:
+    def __init__(self, id_client, limite_inferior, limite_superior, tiempo_viaje, tiempo_servicio, tiempo_llegada, tiempo_mas_tarde):
+        self.id_client = id_client
+        self.limite_inferior = limite_inferior
+        self.limite_superior = limite_superior
+        self.tiempo_viaje = tiempo_viaje
+        self.tiempo_servicio = tiempo_servicio
+        self.tiempo_llegada = tiempo_llegada
+        self.tiempo_mas_tarde = tiempo_mas_tarde
+
+def _f1(observation: State, rng: np.random.Generator, partial_routes : list, client_ids : dict ):
+    
+    new_mask = np.copy(observation['must_dispatch'])
+    unused_nodes = []
+    for i in range(len(new_mask)):
+        unused_nodes.append((i, False))
+    
+    new_mask[0] = True
+    unused_nodes[0] = (0, True)
+    for route in partial_routes:
+        for xi in route:
+            x = client_ids[xi]
+            new_mask[x] = True
+            unused_nodes[x]= (x, True)  
+            
+    def custom_compare(a : tuple, b : tuple):
+        xa = observation['demands'][a[0]]
+        xb = observation['demands'][b[0]]
+        if(xa < xb):
+            return -1
+        elif(xa > xb):
+            return 1
+        else:
+            return 0
+    unused_nodes = sorted(unused_nodes, key = cmp_to_key(custom_compare)) #Aqui se sortearon por las demandas de menor a mayor
+    
+    def create_route_info(route : list):
+        routes_precompute = []
+        len_route = len(route)
+        for idx_client in range(len_route):
+            id_client = client_ids[route[idx_client]]
+            limite_inferior = observation['time_windows'][id_client][0]
+            limite_superior = observation['time_windows'][id_client][1]
+            tiempo_servicio = observation['service_times'][idx_client]
+            tiempo_viaje = 0
+            tiempo_llegada = 0
+            tiempo_mas_tarde = 0
+            
+            if(idx_client == len_route - 1):
+                tiempo_viaje = observation['duration_matrix'][id_client][0]
+                tiempo_mas_tarde = limite_superior
+            else:
+                next_idx_client = client_ids[route[idx_client+1]]
+                tiempo_viaje = observation['duration_matrix'][id_client][next_idx_client]
+            
+            if(idx_client == 0):
+                tiempo_llegada = observation['duration_matrix'][0][id_client]
+            else:
+                last_client = routes_precompute[idx_client-1]
+                tiempo_llegada = max(last_client.limite_inferior, last_client.tiempo_llegada) + last_client.tiempo_viaje + last_client.tiempo_servicio
+            
+            new_client_info = Route_info(id_client, limite_inferior, limite_superior, tiempo_viaje, tiempo_servicio, tiempo_llegada, tiempo_mas_tarde)
+            routes_precompute.append(new_client_info)
+            
+        for idx_client in range(len_route-2, -1, -1):
+            next_client = routes_precompute[idx_client+1]
+            client = routes_precompute[idx_client]
+            second_condition = next_client.tiempo_mas_tarde - client.tiempo_servicio - client.tiempo_viaje
+            tiempo_mas_tarde = min(client.limite_superior, second_condition)
+            routes_precompute[idx_client].tiempo_mas_tarde = tiempo_mas_tarde
+        
+        log("------------------------------------------------------------")
+        for x in routes_precompute:
+            log(f"id_client -> {x.id_client} limite_inferior -> {x.limite_inferior} limite_superior -> {x.limite_superior} tiempo_servicio -> {x.tiempo_servicio} tiempo_viaje -> {x.tiempo_viaje} tiempo_llegada -> {x.tiempo_llegada} tiempo_mas_tarde -> {x.tiempo_mas_tarde}")
+        log("------------------------------------------------------------")
+        
+        return routes_precompute
+        
+        
+    routes_precompute = []
+    for route in partial_routes:
+        routes_precompute.append(create_route_info(route))
+        
+    
+    
+    # log(partial_routes)
+    # log(unused_nodes)
+    # log(observation['demands'])
+    
+    
+    
+    
+    
+    return _filter_instance(observation, new_mask)
+
+
 STRATEGIES = dict(
     greedy=_greedy,
     lazy=_lazy,
@@ -309,5 +431,7 @@ STRATEGIES = dict(
     knearestcoords= _knearest_coords,
     knearesttime = _knearest_time,
     modifiedknearest = _modified_knearest_time,
-    findsolitary = _find_solitary
+    findsolitary = _find_solitary,
+    getMustDispatch = _get_must_dispatch,
+    f1 = _f1
 )
