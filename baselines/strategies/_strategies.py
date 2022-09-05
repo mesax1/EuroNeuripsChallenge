@@ -312,11 +312,13 @@ def log(obj, newline=True, flush=False):
         
 
 def _get_must_dispatch(observation: State, rng: np.random.Generator): #Si no hay must_dispatch obligatorios obtengo los 10 nearest
-    # log(observation['request_idx'])
+    # log(observation['must_dispatch'])
     new_mask = np.copy(observation['must_dispatch'])
     new_mask[0] = True
-    
-    if(sum(new_mask) < 10):
+    # log(new_mask)
+    # log("---------------\n")
+    # log(sum(new_mask) )
+    if(sum(new_mask) < 10): 
         neighbors = get_time_neighbors(observation['duration_matrix'], 0, 10)
         for neighbor in neighbors:
             new_mask[neighbor] = True
@@ -324,31 +326,29 @@ def _get_must_dispatch(observation: State, rng: np.random.Generator): #Si no hay
     return _filter_instance(observation, new_mask)
 
     
-class Route_info:
-    def __init__(self, id_client, limite_inferior, limite_superior, tiempo_viaje, tiempo_servicio, tiempo_llegada, tiempo_mas_tarde):
-        self.id_client = id_client
-        self.limite_inferior = limite_inferior
-        self.limite_superior = limite_superior
-        self.tiempo_viaje = tiempo_viaje
-        self.tiempo_servicio = tiempo_servicio
-        self.tiempo_llegada = tiempo_llegada
-        self.tiempo_mas_tarde = tiempo_mas_tarde
+
 
 def _f1(observation: State, rng: np.random.Generator, partial_routes : list, client_ids : dict ):
     
-    new_mask = np.copy(observation['must_dispatch'])
+    # log(partial_routes)
+    # log(observation)
+    new_mask = np.copy(observation['must_dispatch']) #REVISAR SI SI SE ESTA COPIANDO BIEN LA MASCARA
     unused_nodes = []
     for i in range(len(new_mask)):
         unused_nodes.append((i, False))
-    
+    # log(partial_routes)
     new_mask[0] = True
-    unused_nodes[0] = (0, True)
-    for route in partial_routes:
-        for xi in route:
-            x = client_ids[xi]
+    unused_nodes[0] = (0, True) # Posicion 0 de la tupla indica la posicion se refiere a la posicion de la informacion respectiva de ese cliente en el epoch
+    for i_route in range(len(partial_routes)):
+        for xi in partial_routes[i_route]:
+            x = client_ids[xi] #X -> posicion en el epoch
             new_mask[x] = True
             unused_nodes[x]= (x, True)  
+        partial_routes[i_route] = np.insert(partial_routes[i_route], 0, 0)
+        partial_routes[i_route] = np.append(partial_routes[i_route], 0)
             
+    # log(partial_routes)
+    
     def custom_compare(a : tuple, b : tuple):
         xa = observation['demands'][a[0]]
         xb = observation['demands'][b[0]]
@@ -359,56 +359,109 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
         else:
             return 0
     unused_nodes = sorted(unused_nodes, key = cmp_to_key(custom_compare)) #Aqui se sortearon por las demandas de menor a mayor
+    class Route_info:
+        def __init__(self, id_client, limite_inferior, limite_superior, tiempo_viaje, tiempo_servicio, tiempo_llegada, tiempo_mas_tarde):
+            self.id_client = id_client #Se refiere a la posicion de la informacion respectiva de ese cliente en el epoch
+            self.limite_inferior = limite_inferior
+            self.limite_superior = limite_superior
+            self.tiempo_viaje = tiempo_viaje #Tiempo de viaje se calcula respecto al cliente i, con el siguiente cliente i+1
+            self.tiempo_servicio = tiempo_servicio
+            self.tiempo_llegada = tiempo_llegada
+            self.tiempo_mas_tarde = tiempo_mas_tarde
     
     def create_route_info(route : list):
-        routes_precompute = []
+        route_precompute = []
         len_route = len(route)
+        occupied_capacity = 0
         for idx_client in range(len_route):
-            id_client = client_ids[route[idx_client]]
+            id_client = client_ids[route[idx_client]] # route[idx_client] -> me devuelve el request_idx que identifica al cliente, client_ids[request_idx] -> me devuelve la posicion del cliente
             limite_inferior = observation['time_windows'][id_client][0]
             limite_superior = observation['time_windows'][id_client][1]
-            tiempo_servicio = observation['service_times'][idx_client]
-            tiempo_viaje = 0
+            tiempo_servicio = observation['service_times'][id_client]
+            tiempo_viaje = 0 
             tiempo_llegada = 0
             tiempo_mas_tarde = 0
             
-            if(idx_client == len_route - 1):
-                tiempo_viaje = observation['duration_matrix'][id_client][0]
-                tiempo_mas_tarde = limite_superior
-            else:
-                next_idx_client = client_ids[route[idx_client+1]]
-                tiempo_viaje = observation['duration_matrix'][id_client][next_idx_client]
+            occupied_capacity += observation['demands'][id_client]
             
-            if(idx_client == 0):
-                tiempo_llegada = observation['duration_matrix'][0][id_client]
+            if(idx_client == len_route - 1): # Calcular tiempo viaje
+                tiempo_mas_tarde = limite_superior #Inicializo precomputo de tiempo_mas_tarde
             else:
-                last_client = routes_precompute[idx_client-1]
+                next_client = client_ids[route[idx_client+1]]
+                tiempo_viaje = observation['duration_matrix'][id_client][next_client]
+            
+            if(idx_client == 0): #Calcular tiempo de llegada
+                tiempo_llegada = 0
+            else:
+                last_client = route_precompute[idx_client-1]
                 tiempo_llegada = max(last_client.limite_inferior, last_client.tiempo_llegada) + last_client.tiempo_viaje + last_client.tiempo_servicio
             
             new_client_info = Route_info(id_client, limite_inferior, limite_superior, tiempo_viaje, tiempo_servicio, tiempo_llegada, tiempo_mas_tarde)
-            routes_precompute.append(new_client_info)
+            route_precompute.append(new_client_info)
             
-        for idx_client in range(len_route-2, -1, -1):
-            next_client = routes_precompute[idx_client+1]
-            client = routes_precompute[idx_client]
+        for idx_client in range(len_route-2, -1, -1):#Calcula tiempo_mas_tarde
+            next_client = route_precompute[idx_client+1]
+            client = route_precompute[idx_client]
             second_condition = next_client.tiempo_mas_tarde - client.tiempo_servicio - client.tiempo_viaje
             tiempo_mas_tarde = min(client.limite_superior, second_condition)
-            routes_precompute[idx_client].tiempo_mas_tarde = tiempo_mas_tarde
+            route_precompute[idx_client].tiempo_mas_tarde = tiempo_mas_tarde
+        
+        
         
         log("------------------------------------------------------------")
-        for x in routes_precompute:
+        for x in route_precompute:
             log(f"id_client -> {x.id_client} limite_inferior -> {x.limite_inferior} limite_superior -> {x.limite_superior} tiempo_servicio -> {x.tiempo_servicio} tiempo_viaje -> {x.tiempo_viaje} tiempo_llegada -> {x.tiempo_llegada} tiempo_mas_tarde -> {x.tiempo_mas_tarde}")
         log("------------------------------------------------------------")
         
-        return routes_precompute
-        
-        
-    routes_precompute = []
+        route_precompute = (route_precompute, occupied_capacity)
+        return route_precompute
+            
+    routes_precompute = [] #array(tuple(array, int)) -> cada ruta en la posicion 0 tiene la informacion de la ruta y en la posicion 1 la capacidad ocupada
     for route in partial_routes:
         routes_precompute.append(create_route_info(route))
         
     
+    # for route in routes_precompute:
+    #     log(route[1])
+    class Best_ans:
+        def __init_(self):
+            self.dist = int(1e15)
+            self.id_client = -1 #Posicion del cliente en los epoch
+            self.route_position = -1 #La posicion de la ruta
+            self.left_client_position = -1
+            
     
+    def insert_client(new_client : Best_ans):
+        new_route = routes_precompute[new_client.route_position][0]
+        id_client = new_client.id_client #id del cliente nuevo q voy a insertar
+        limite_inferior = observation['time_windows'][id_client][0]
+        limite_superior = observation['time_windows'][id_client][1]
+        tiempo_servicio = observation['service_times'][id_client]
+        right_client_id =  new_route[new_client.left_client_position+1].id_client #Este sera el cliente que ira al lado derecho de mi cliente q voy agregar
+        tiempo_viaje = observation['duration_matrix'][id_client][right_client_id]
+        tiempo_llegada = 0
+        tiempo_mas_tarde = 0
+        
+        
+        client_route_info = Route_info(id_client, limite_inferior, limite_superior, tiempo_viaje, tiempo_servicio, tiempo_llegada, tiempo_mas_tarde)
+        new_route.insert(new_client.left_client_position+1, client_route_info)
+        
+        
+        len_route = len(new_route)
+        for i in range(1, len_route): #i -> iterador de 1..n-1, j -> iterador n-2...0
+            j = len_route-i-1
+            #Recalcular tiempo de llegada
+            last_client = new_route[i-1]
+            new_route[i].tiempo_llegada = max(last_client.limite_inferior, last_client.tiempo_llegada) + last_client.tiempo_viaje + last_client.tiempo_servicio
+            #Recalcular tiempo_mas_tarde
+            next_client = new_route[j+1]
+            client = new_route[j]
+            second_condition = next_client.tiempo_mas_tarde - client.tiempo_servicio - client.tiempo_viaje
+            new_route[j].tiempo_mas_tarde = min(client.limite_superior, second_condition)
+
+        occupied_capacity = routes_precompute[new_client.route_position][1] + observation['demands'][id_client]
+        routes_precompute[new_client.route_position] = (new_route, occupied_capacity)
+         
     # log(partial_routes)
     # log(unused_nodes)
     # log(observation['demands'])

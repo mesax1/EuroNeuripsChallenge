@@ -138,6 +138,9 @@ def run_baseline(args, env, oracle_solution=None, strategy=None):
             epoch_instance_dispatch = STRATEGIES['getMustDispatch'](epoch_instance, rng)
             solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=5, tmp_dir=args.tmp_dir, seed=args.solver_seed))
             partial_epoch_solution, partial_cost = solutions[-1]
+            unchanged_epoch_solution = list(partial_epoch_solution)
+            # log(epoch_instance)
+            # [log(f" Route {route} Demands {sum(epoch_instance['demands'][route])}") for route in unchanged_epoch_solution]
             partial_epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in partial_epoch_solution]
             epoch_instance_dispatch = STRATEGIES['f1'](epoch_instance, rng, partial_epoch_solution, client_id)
             solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=epoch_tlim, tmp_dir=args.tmp_dir, seed=args.solver_seed))
