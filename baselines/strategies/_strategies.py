@@ -408,10 +408,10 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
         
         
         
-        log("------------------------------------------------------------")
-        for x in route_precompute:
-            log(f"id_client -> {x.id_client} limite_inferior -> {x.limite_inferior} limite_superior -> {x.limite_superior} tiempo_servicio -> {x.tiempo_servicio} tiempo_viaje -> {x.tiempo_viaje} tiempo_llegada -> {x.tiempo_llegada} tiempo_mas_tarde -> {x.tiempo_mas_tarde}")
-        log("------------------------------------------------------------")
+        #log("------------------------------------------------------------")
+        #for x in route_precompute:
+            #log(f"id_client -> {x.id_client} limite_inferior -> {x.limite_inferior} limite_superior -> {x.limite_superior} tiempo_servicio -> {x.tiempo_servicio} tiempo_viaje -> {x.tiempo_viaje} tiempo_llegada -> {x.tiempo_llegada} tiempo_mas_tarde -> {x.tiempo_mas_tarde}")
+        #log("------------------------------------------------------------")
         
         route_precompute = (route_precompute, occupied_capacity)
         return route_precompute
@@ -424,11 +424,11 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
     # for route in routes_precompute:
     #     log(route[1])
     class Best_ans:
-        def __init_(self):
-            self.dist = int(1e15)
-            self.id_client = -1 #Posicion del cliente en los epoch
-            self.route_position = -1 #La posicion de la ruta
-            self.left_client_position = -1
+        def __init__(self, dist, id_client, route_position, left_client_position):
+            self.dist = dist
+            self.id_client = id_client #Posicion del cliente en los epoch
+            self.route_position = route_position #La posicion de la ruta
+            self.left_client_position = left_client_position
             
     
     def insert_client(new_client : Best_ans):
@@ -462,14 +462,38 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
         occupied_capacity = routes_precompute[new_client.route_position][1] + observation['demands'][id_client]
         routes_precompute[new_client.route_position] = (new_route, occupied_capacity)
          
-    # log(partial_routes)
-    # log(unused_nodes)
-    # log(observation['demands'])
-    
-    
-    
-    
-    
+
+    for node in unused_nodes:
+        if node[1]: # Si nodo ya se encuentra en la solución
+           continue
+        else:
+           flag = 0
+           node_id = node[0]
+           bestAns = Best_ans(1e15, -1, -1, -1)
+           for n_route, route in enumerate(routes_precompute): # iterar sobre las rutas y sobre su indice
+               if observation['demands'][node_id]+route[1] > (0.9 * observation['capacity']): # Si supera el 90% de la capacidad del carro
+                  flag += 1 # suma una cuenta al flag para que determine si se sale del loop o no
+               else:
+                  for i in range(1, len(route[0])):
+                      last_node = route[0][i-1]
+                      next_node = route[0][i]
+                      tiempo_llegada_1 = max(last_node.limite_inferior, last_node.tiempo_llegada) + observation['duration_matrix'][last_node.id_client][node_id] + observation['service_times'][last_node.id_client]
+                      limite_superior_1 = observation['time_windows'][node_id][1]
+                      if tiempo_llegada_1 <= limite_superior_1:
+                         limite_inferior_2 = observation['time_windows'][node_id][0]
+                         tiempo_llegada_2 = max(limite_inferior_2, tiempo_llegada_1) + observation['duration_matrix'][node_id][next_node.id_client] + observation['service_times'][node_id]
+                         if tiempo_llegada_2 <= next_node.tiempo_mas_tarde:
+                            added_distance = observation['duration_matrix'][node_id][next_node.id_client] + observation['duration_matrix'][last_node.id_client][node_id] - observation['duration_matrix'][last_node.id_client][next_node.id_client]
+                            if added_distance < bestAns.dist:
+                               bestAns = Best_ans(added_distance, node_id, n_route, i-1)
+
+           if bestAns.id_client >= 0:
+              insert_client(bestAns)
+              new_mask[bestAns.id_client] = True
+
+           if flag == len(routes_precompute):
+               break
+
     return _filter_instance(observation, new_mask)
 
 
