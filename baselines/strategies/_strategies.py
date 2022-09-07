@@ -461,7 +461,6 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
 
         occupied_capacity = routes_precompute[new_client.route_position][1] + observation['demands'][id_client]
         routes_precompute[new_client.route_position] = (new_route, occupied_capacity)
-         
 
     for node in unused_nodes:
         if node[1]: # Si nodo ya se encuentra en la solución
@@ -486,6 +485,8 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
                             added_distance = observation['duration_matrix'][node_id][next_node.id_client] + observation['duration_matrix'][last_node.id_client][node_id] - observation['duration_matrix'][last_node.id_client][next_node.id_client]
                             if added_distance < bestAns.dist:
                                bestAns = Best_ans(added_distance, node_id, n_route, i-1)
+                      else:
+                          break
 
            if bestAns.id_client >= 0:
               insert_client(bestAns)
