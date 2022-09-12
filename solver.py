@@ -130,39 +130,71 @@ def run_baseline(args, env, oracle_solution=None, strategy=None):
             # solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=epoch_tlim, tmp_dir=args.tmp_dir, seed=args.solver_seed))
             
             #Se prueba la idea de la reunion 28 agosto
-            
-            client_id = dict()
-            for xi in range(len(epoch_instance['request_idx'])):
-                client_id[epoch_instance['request_idx'][xi]] = xi
-            
-            epoch_instance_dispatch = STRATEGIES['getMustDispatch'](epoch_instance, rng)
-            solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=5, tmp_dir=args.tmp_dir, seed=args.solver_seed))
-            partial_epoch_solution, partial_cost = solutions[-1]
-            unchanged_epoch_solution = list(partial_epoch_solution)
-            # log(epoch_instance)
-            # [log(f" Route {route} Demands {sum(epoch_instance['demands'][route])}") for route in unchanged_epoch_solution]
-            partial_epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in partial_epoch_solution]
-            epoch_instance_dispatch = STRATEGIES['f1'](epoch_instance, rng, partial_epoch_solution, client_id)
-            solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=epoch_tlim, tmp_dir=args.tmp_dir, seed=args.solver_seed))
-
-            #------------------
-            
+            solutions = []
+            epoch_instance_dispatch = epoch_instance
+            log(f"\n Must dispatch: {sum(epoch_instance['must_dispatch'])}, number_of_customers: {len(epoch_instance['must_dispatch'])-1}")
+            if sum(epoch_instance['must_dispatch']) == len(epoch_instance['must_dispatch'])-1:
+                solutions = list(solve_static_vrptw(epoch_instance, time_limit=epoch_tlim, tmp_dir=args.tmp_dir, seed=args.solver_seed))
+            else:
+                """
+                epoch_instance_dispatch = STRATEGIES['modifiedknearest'](epoch_instance, rng)
+                solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=epoch_tlim, tmp_dir=args.tmp_dir, seed=args.solver_seed))
+                """
+                client_id = dict()
+                for xi in range(len(epoch_instance['request_idx'])):
+                    client_id[epoch_instance['request_idx'][xi]] = xi
+                
+                epoch_instance_dispatch = STRATEGIES['getMustDispatch'](epoch_instance, rng)
+                initial_time_limit = 20
+                final_time_limit = epoch_tlim - initial_time_limit
+                solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=initial_time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))
+                partial_epoch_solution, partial_cost = solutions[-1]
+                unchanged_epoch_solution = list(partial_epoch_solution)
+                # log(epoch_instance)
+                # [log(f" Route {route} Demands {sum(epoch_instance['demands'][route])}") for route in unchanged_epoch_solution]
+                partial_epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in partial_epoch_solution]
+                epoch_instance_dispatch = STRATEGIES['f1'](epoch_instance, rng, partial_epoch_solution, client_id)
+                solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=final_time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))            #------------------
+                
             assert len(solutions) > 0, f"No solution found during epoch {observation['current_epoch']}"
             epoch_solution, cost = solutions[-1]
 
             # Map HGS solution to indices of corresponding requests
             unchanged_epoch_solution = list(epoch_solution)
             epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in epoch_solution]
-        
+            
+            log(f"\n Routes capacity: {epoch_instance_dispatch['capacity']} ")
+            costo_todas_las_rutas = 0
+            client_ids = dict()
+            for xi in range(len(epoch_instance['request_idx'])):
+                client_ids[epoch_instance['request_idx'][xi]] = xi
+
+            for i in range(len(epoch_solution)):
+                route = epoch_solution[i]
+                route_precompute = []
+                len_route = len(route)
+                for idx_client in range(len_route):
+                    id_client = client_ids[route[idx_client]] # route[idx_client]
+                    route_precompute.append(id_client)
+                #log(f"New Route total demand: {route[1]}")
+                mostrar_clientes = []
+                costo_ruta = tools.compute_route_driving_time(route_precompute, epoch_instance['duration_matrix'])
+                for customer in route:
+                    mostrar_clientes.append(customer)
+                #log(f"Clientes: {mostrar_clientes}")
+                log(f"New Route total demand: nan, Costo de ruta: {costo_ruta}, Clientes: {mostrar_clientes}")
+                costo_todas_las_rutas += costo_ruta
+            log(f"Number of routes: {len(epoch_solution)}, Costo de todas las rutas: {costo_todas_las_rutas}")  
+      
         if args.verbose:
             num_requests_dispatched = sum([len(route) for route in epoch_solution])
             num_requests_open = len(epoch_instance['request_idx']) - 1
             num_requests_postponed = num_requests_open - num_requests_dispatched
             log(f" {num_requests_dispatched:3d}/{num_requests_open:3d} dispatched and {num_requests_postponed:3d}/{num_requests_open:3d} postponed | Routes: {len(epoch_solution):2d} with cost {cost:6d}")
             #log(f" Epoch number: {observation['current_epoch']}")
-            log(f" Instance capacity: {epoch_instance['capacity']}")
-            [log(f" Route {route} Demands {sum(epoch_instance['demands'][route])}") for route in unchanged_epoch_solution]
-            #[log(f" Route {route} Cost {tools.compute_route_driving_time(route, epoch_instance['duration_matrix'])}") for route in unchanged_epoch_solution]
+            #log(f" Instance capacity: {epoch_instance['capacity']}")
+            #[log(f" Route {route} Demands {sum(epoch_instance['demands'][route])}") for route in unchanged_epoch_solution]
+            #[log(f" Route {route} Cost {tools.compute_route_driving_time(route, epoch_instance['duration_matrix'])}") for route in epoch_solution]
             log("----------------------------------------------------------------------------------------------------------")
         # Submit solution to environment
         observation, reward, done, info = env.step(epoch_solution)

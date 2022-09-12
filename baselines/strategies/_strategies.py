@@ -318,10 +318,42 @@ def _get_must_dispatch(observation: State, rng: np.random.Generator): #Si no hay
     # log(new_mask)
     # log("---------------\n")
     # log(sum(new_mask) )
+    """
     if(sum(new_mask) < 10): 
         neighbors = get_time_neighbors(observation['duration_matrix'], 0, 10)
         for neighbor in neighbors:
             new_mask[neighbor] = True
+    """
+    def modify_mask_of_neighbors(mask, k):
+        new_mask = np.copy(mask)
+        for i in range(len(observation['must_dispatch'])):
+            if mask[i] == True:
+                if i == 0: #If depot, get furthest neighbors instead of nearest
+                    must_dispatches = sum(mask)
+                    if must_dispatches < 10:
+                        #neighbors = get_furthest_neighbors(observation['duration_matrix'], i, k)
+                        neighbors = get_time_neighbors(observation['duration_matrix'], i, k)
+                        for neighbor in neighbors:
+                            new_mask[neighbor] = True
+                else:
+                    neighbors = get_time_neighbors(observation['duration_matrix'], i, k)
+                    for neighbor in neighbors:
+                        new_mask[neighbor] = True
+        return new_mask
+    
+    # Obtain k neighbors for each customer with 'must_dispatch'
+    k = 8
+    new_mask = modify_mask_of_neighbors(new_mask, k)
+    limit_iterations = 0
+    while (sum(new_mask) < len(observation['must_dispatch'])*.95):
+        
+        k = k - 4
+        new_mask = modify_mask_of_neighbors(new_mask, k)
+        limit_iterations += 1
+        if limit_iterations >= 1:
+            break
+
+
         
     return _filter_instance(observation, new_mask)
 
@@ -420,9 +452,20 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
     for route in partial_routes:
         routes_precompute.append(create_route_info(route))
         
-    
-    # for route in routes_precompute:
-    #     log(route[1])
+    log(f"\n Routes capacity: {observation['capacity']} ")
+    costo_todas_las_rutas = 0
+    for route in routes_precompute:
+         #log(f" Route total demand: {route[1]}")
+         mostrar_clientes = []
+         costo_ruta = 0
+         for customer in route[0]:
+             mostrar_clientes.append(customer.id_client)
+             costo_ruta += customer.tiempo_viaje
+         #log(f"Clientes: {mostrar_clientes}")
+         log(f"Obligatory Route total demand: {route[1]}, Costo de ruta: {costo_ruta}, Clientes: {mostrar_clientes}")
+         costo_todas_las_rutas += costo_ruta
+    log(f"Number of routes: {len(routes_precompute)}, Costo de todas las rutas: {costo_todas_las_rutas}")
+
     class Best_ans:
         def __init__(self, dist, id_client, route_position, left_client_position):
             self.dist = dist
@@ -463,37 +506,60 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
         routes_precompute[new_client.route_position] = (new_route, occupied_capacity)
 
     for node in unused_nodes:
-        if node[1]: # Si nodo ya se encuentra en la solución
+        if node[1] == False: # Si nodo no se encuentra en la solucion actual
            continue
         else:
            flag = 0
-           node_id = node[0]
-           bestAns = Best_ans(1e15, -1, -1, -1)
-           for n_route, route in enumerate(routes_precompute): # iterar sobre las rutas y sobre su indice
-               if observation['demands'][node_id]+route[1] > (0.9 * observation['capacity']): # Si supera el 90% de la capacidad del carro
-                  flag += 1 # suma una cuenta al flag para que determine si se sale del loop o no
-               else:
-                  for i in range(1, len(route[0])):
-                      last_node = route[0][i-1]
-                      next_node = route[0][i]
-                      tiempo_llegada_1 = max(last_node.limite_inferior, last_node.tiempo_llegada) + observation['duration_matrix'][last_node.id_client][node_id] + observation['service_times'][last_node.id_client]
-                      limite_superior_1 = observation['time_windows'][node_id][1]
-                      if tiempo_llegada_1 <= limite_superior_1:
-                         limite_inferior_2 = observation['time_windows'][node_id][0]
-                         tiempo_llegada_2 = max(limite_inferior_2, tiempo_llegada_1) + observation['duration_matrix'][node_id][next_node.id_client] + observation['service_times'][node_id]
-                         if tiempo_llegada_2 <= next_node.tiempo_mas_tarde:
-                            added_distance = observation['duration_matrix'][node_id][next_node.id_client] + observation['duration_matrix'][last_node.id_client][node_id] - observation['duration_matrix'][last_node.id_client][next_node.id_client]
-                            if added_distance < bestAns.dist:
-                               bestAns = Best_ans(added_distance, node_id, n_route, i-1)
-                      else:
-                          break
+           current_node_id = node[0]
+           k = 8
+           neighbors = get_time_neighbors(observation['duration_matrix'], current_node_id, k)
+           for neighbor in neighbors:
+               node_id = neighbor
+               if new_mask[node_id] == True:
+                   continue
+               bestAns = Best_ans(1e15, -1, -1, -1)
+               for n_route, route in enumerate(routes_precompute): # iterar sobre las rutas y sobre su indice
+                   if observation['demands'][node_id]+route[1] > (0.9 * observation['capacity']): # Si supera el 90% de la capacidad del carro
+                      flag += 1 # suma una cuenta al flag para que determine si se sale del loop o no
+                   else:
+                      for i in range(1, len(route[0])):
+                          last_node = route[0][i-1]
+                          next_node = route[0][i]
+                          tiempo_llegada_1 = max(last_node.limite_inferior, last_node.tiempo_llegada) + observation['duration_matrix'][last_node.id_client][node_id] + observation['service_times'][last_node.id_client]
+                          limite_superior_1 = observation['time_windows'][node_id][1]
+                          if tiempo_llegada_1 <= limite_superior_1:
+                             limite_inferior_2 = observation['time_windows'][node_id][0]
+                             tiempo_llegada_2 = max(limite_inferior_2, tiempo_llegada_1) + observation['duration_matrix'][node_id][next_node.id_client] + observation['service_times'][node_id]
+                             if tiempo_llegada_2 <= next_node.tiempo_mas_tarde:
+                                added_distance = observation['duration_matrix'][node_id][next_node.id_client] + observation['duration_matrix'][last_node.id_client][node_id] - observation['duration_matrix'][last_node.id_client][next_node.id_client]
+                                if added_distance < bestAns.dist:
+                                   bestAns = Best_ans(added_distance, node_id, n_route, i-1)
+                          else:
+                              break
 
-           if bestAns.id_client >= 0:
-              insert_client(bestAns)
-              new_mask[bestAns.id_client] = True
+               if bestAns.id_client >= 0:
+                  insert_client(bestAns)
+                  new_mask[bestAns.id_client] = True
+                  break
 
-           if flag == len(routes_precompute):
-               break
+               if flag == len(routes_precompute):
+                   break    
+
+
+    
+    log(f"\n Routes capacity: {observation['capacity']} ")
+    costo_todas_las_rutas = 0
+    for route in routes_precompute:
+         #log(f"New Route total demand: {route[1]}")
+         mostrar_clientes = []
+         costo_ruta = 0
+         for customer in route[0]:
+             mostrar_clientes.append(customer.id_client)
+             costo_ruta += customer.tiempo_viaje
+         #log(f"Clientes: {mostrar_clientes}")
+         log(f"New Route total demand: {route[1]}, Costo de ruta: {costo_ruta}, Clientes: {mostrar_clientes}")
+         costo_todas_las_rutas += costo_ruta
+    log(f"Number of routes: {len(routes_precompute)}, Costo de todas las rutas: {costo_todas_las_rutas}")
 
     return _filter_instance(observation, new_mask)
 

@@ -262,7 +262,16 @@ public:
 	// closest to the depot.
 	void constructIndividualWithSeedOrder(int toleratedCapacityViolation, int toleratedTimeWarp,
 		bool useSeedClientFurthestFromDepot, Individual* indiv);
-
+	
+	// Construct an individual using a heuristic with a maximum allowed violation of capacity and a
+	// maximum allowed time warp. If not all clients can be assigned given the tolerances, the
+	// unassigned clients are added to the back of the last route (should not happen in practice,
+	// since there are plenty routes). Routes are created sequentially. The seed client in the
+	// route can be either the unassigned client furthest from depot, or the unassigned client
+	// closest to the depot.
+	void constructIndividualWithSeedOrderAndRegret(int toleratedCapacityViolation, int toleratedTimeWarp,
+		bool useSeedClientFurthestFromDepot, Individual* indiv);
+		
 	// Groups orders per route according to angle with depot. fillPercentage can be configured to
 	// allow some room for repairing routes during local search. Orders with short time window are
 	// added in order of time latestArrival, other orders are inserted in best position.
