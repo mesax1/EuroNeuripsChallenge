@@ -23,5 +23,5 @@ elif action == "r":
     current_time = now.strftime("%m, %d, %y, %H:%M:%S")
     r = open("results.txt", "a")
     r.write(f"Time: {current_time}, Method:{method}, Cost_of_solution: {score}\n")
-    r.close()
 
+    r.close()

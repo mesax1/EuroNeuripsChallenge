@@ -5,10 +5,14 @@ from environment import State
 import sys
 from functools import cmp_to_key
 
+
 def _filter_instance(observation: State, mask: np.ndarray):
     res = {}
 
-    for key, value in observation.items(): 
+    for key, value in observation.items():
+        if key in ('observation', 'static_info'):
+            continue
+
         if key == 'capacity':
             res[key] = value
             continue
@@ -35,26 +39,10 @@ def get_time_neighbors(duration_matrix, i, num_neighbors):
         neighbors.append(distances[i][0])
     return neighbors
 
-# Locate the k furthest neighbors
-def get_furthest_neighbors(duration_matrix, i, num_neighbors):
-    distances = list()
-    for j in range(len(duration_matrix)):
-        dist = duration_matrix[i][j] + duration_matrix[j][i]
-        distances.append((j, dist))
-    distances.sort(key=lambda tup: tup[1], reverse=True)
-    neighbors = list()
-    max_neighbors = min(num_neighbors, len(duration_matrix))
-    for i in range(max_neighbors):
-        neighbors.append(distances[i][0])
-    return neighbors
-
-
 def _greedy(observation: State, rng: np.random.Generator):
-    return {
-        **observation,
-        'must_dispatch': np.ones_like(observation['must_dispatch']).astype(np.bool8)
-    }
-
+    mask = np.copy(observation['must_dispatch'])
+    mask[:] = True
+    return _filter_instance(observation, mask)
 
 
 def _lazy(observation: State, rng: np.random.Generator):
@@ -168,7 +156,6 @@ def _knearest_time(observation: State, rng: np.random.Generator):
     return _filter_instance(observation, mask)
 
 def _modified_knearest_time(observation: State, rng: np.random.Generator):
-    #log(observation)
     mask = np.copy(observation['must_dispatch'])
     new_mask = np.copy(observation['must_dispatch'])
     mask[0] = True
@@ -177,16 +164,16 @@ def _modified_knearest_time(observation: State, rng: np.random.Generator):
         
     
     # Locate the k furthest neighbors
-    # def get_furthest_neighbors(duration_matrix, i, num_neighbors):
-    # 	distances = list()
-    # 	for j in range(len(duration_matrix)):
-    #         dist = duration_matrix[i][j] + duration_matrix[j][i]
-    #         distances.append((j, dist))
-    # 	distances.sort(key=lambda tup: tup[1], reverse=True)
-    # 	neighbors = list()
-    # 	for i in range(num_neighbors):
-    # 		neighbors.append(distances[i][0])
-    # 	return neighbors
+    def get_furthest_neighbors(duration_matrix, i, num_neighbors):
+    	distances = list()
+    	for j in range(len(duration_matrix)):
+            dist = duration_matrix[i][j] + duration_matrix[j][i]
+            distances.append((j, dist))
+    	distances.sort(key=lambda tup: tup[1], reverse=True)
+    	neighbors = list()
+    	for i in range(num_neighbors):
+    		neighbors.append(distances[i][0])
+    	return neighbors
     
     
     def modify_mask_of_neighbors(mask, k):
@@ -207,17 +194,12 @@ def _modified_knearest_time(observation: State, rng: np.random.Generator):
         return new_mask
     
     # Obtain k neighbors for each customer with 'must_dispatch'
-    k = 7
-    #k = min(6,len(observation['must_dispatch'])//(sum(new_mask)))
-    #k = end_epoch + 1 - current_epoch//3
-    #k = max(end_epoch, end_epoch +6 - current_epoch)
+    k = 6
     new_mask = modify_mask_of_neighbors(new_mask, k)
-    
     
     limit_iterations = 0
     while (sum(new_mask) < len(observation['must_dispatch'])*.95):
-        #k = max(6,len(observation['must_dispatch'])//(sum(new_mask)//2))
-        k = k - 1 
+        k = k+1
         new_mask = modify_mask_of_neighbors(new_mask, k)
         limit_iterations += 1
         if limit_iterations >= 1:
@@ -270,7 +252,11 @@ def _find_solitary(observation: State, rng: np.random.Generator):
         for i in range(len(observation['must_dispatch'])):
             if mask[i] == True:
                 if i == 0: #If depot
-                    continue
+                    must_dispatches = sum(mask)
+                    if must_dispatches < 10:
+                        neighbors = get_time_neighbors(observation['duration_matrix'], i, k)
+                        for neighbor in neighbors:
+                            new_mask[neighbor] = True
                 else:
                     neighbors = get_time_neighbors(observation['duration_matrix'], i, k)
                     for neighbor in neighbors:
@@ -279,15 +265,14 @@ def _find_solitary(observation: State, rng: np.random.Generator):
     
     #Execute
     [q_10, q_15, q_25, q_50, q_75] = get_radius_quantiles(observation['duration_matrix'])
-    threshold = len(observation['must_dispatch'])//5
+    threshold = len(observation['must_dispatch'])//6
+    #threshold = 15
     radius = q_10
     mask = modify_mask_of_customers(mask, radius, threshold)
     new_mask = np.copy(mask)
     
     # Obtain k neighbors for each customer with 'must_dispatch'
-    k = 6
-    k = current_epoch + 3
-    k = end_epoch + 2 - current_epoch//2
+    k = 2
     new_mask = modify_mask_of_neighbors(new_mask, k)
     
     limit_iterations = 0
@@ -295,12 +280,11 @@ def _find_solitary(observation: State, rng: np.random.Generator):
         k = k+1
         new_mask = modify_mask_of_neighbors(new_mask, k)
         limit_iterations += 1
-        if limit_iterations >= 1:
+        if limit_iterations >= 4:
             break
     
     
     return _filter_instance(observation, new_mask)
-    
 
 def log(obj, newline=True, flush=False):
     # Write logs to stderr since program uses stdout to communicate with controller
@@ -309,7 +293,6 @@ def log(obj, newline=True, flush=False):
         sys.stderr.write('\n')
     if flush:
         sys.stderr.flush()
-        
 
 def _get_must_dispatch(observation: State, rng: np.random.Generator): #Si no hay must_dispatch obligatorios obtengo los 10 nearest
     # log(observation['must_dispatch'])
@@ -561,13 +544,36 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
          costo_todas_las_rutas += costo_ruta
     log(f"Number of routes: {len(routes_precompute)}, Costo de todas las rutas: {costo_todas_las_rutas}")
 
-    return _filter_instance(observation, new_mask)
+    return _filter_instance(observation, new_mask)    
+
+def _supervised(observation: State, rng: np.random.Generator, net):
+    from baselines.supervised.transform import transform_one
+    mask = np.copy(observation['must_dispatch'])
+    mask = mask | net(transform_one(observation)).argmax(-1).bool().numpy()
+    mask[0] = True
+    return _filter_instance(observation, mask)
+
+
+def _dqn(observation: State, rng: np.random.Generator, net):
+    import torch
+    from baselines.dqn.utils import get_request_features
+    actions = []
+    epoch_instance = observation
+    observation, static_info = epoch_instance.pop('observation'), epoch_instance.pop('static_info')
+    request_features, global_features = get_request_features(observation, static_info, net.k_nearest)
+    all_features = torch.cat((request_features, global_features[None, :].repeat(request_features.shape[0], 1)), -1)
+    actions = net(all_features).argmax(-1).detach().cpu().tolist()
+    mask = epoch_instance['must_dispatch'] | (np.array(actions) == 0)
+    mask[0] = True  # Depot always included in scheduling
+    return _filter_instance(epoch_instance, mask)
 
 
 STRATEGIES = dict(
     greedy=_greedy,
     lazy=_lazy,
     random=_random,
+    supervised=_supervised,
+    dqn=_dqn,
     random25=_random25,
     random75=_random75,
     random85=_random85,
@@ -578,4 +584,5 @@ STRATEGIES = dict(
     findsolitary = _find_solitary,
     getMustDispatch = _get_must_dispatch,
     f1 = _f1
+
 )

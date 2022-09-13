@@ -28,3 +28,6 @@ Time: 09, 11, 22, 23:34:40, Method:Modified_f1_with_modifiedknearest_k5, Cost_of
 Time: 09, 11, 22, 23:56:41, Method:Modified_f1_with_modifiedknearest_k6, Cost_of_solution: 390221.7590361446
 Time: 09, 12, 22, 00:19:05, Method:Modified_f1_with_modifiedknearest_k6, Cost_of_solution: 389509.1370967742
 Time: 09, 12, 22, 13:13:42, Method:Modified_f1_with_modifiedknearest_k5, Cost_of_solution: 393906.39442231075
+Time: 09, 12, 22, 18:02:36, Method:Modified_f1_with_modifiedknearest_k8_k4_k8, Cost_of_solution: 387691.90041493776
+Time: 09, 12, 22, 19:37:29, Method:Modified_f1_with_modifiedknearest_k7_k3_k8, Cost_of_solution: 392713.436
+
