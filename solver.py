@@ -159,12 +159,12 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None):
                 # log(epoch_instance)
                 # [log(f" Route {route} Demands {sum(epoch_instance['demands'][route])}") for route in unchanged_epoch_solution]
                 partial_epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in partial_epoch_solution]
-                graficar.graficar(epoch_instance, partial_epoch_solution, client_id)
-            epoch_instance_dispatch = STRATEGIES['f1'](epoch_instance, rng, partial_epoch_solution, client_id)
+                epoch_instance_dispatch = STRATEGIES['f1'](epoch_instance, rng, partial_epoch_solution, client_id)
                 solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=final_time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))            #------------------
                 
             assert len(solutions) > 0, f"No solution found during epoch {observation['current_epoch']}"
             epoch_solution, cost = solutions[-1]
+            # graficar.graficar(epoch_instance, epoch_solution, client_id)
 
             # Map HGS solution to indices of corresponding requests
             unchanged_epoch_solution = list(epoch_solution)
