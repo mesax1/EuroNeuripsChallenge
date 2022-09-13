@@ -26,6 +26,10 @@ void Genetic::run(int maxIterNonProd, int timeLimit)
 		// Then use the selected parents to create new individuals using OX and SREX
 		// Finally select the best new individual based on bestOfSREXAndOXCrossovers
 		Individual* offspring = bestOfSREXAndOXCrossovers(population->getNonIdenticalParentsBinaryTournament());
+		
+
+		
+
 
 		/* LOCAL SEARCH */
 		// Run the Local Search on the new individual
@@ -114,13 +118,14 @@ Individual* Genetic::crossoverOX(std::pair<const Individual*, const Individual*>
 
 	// Create two individuals using OX
 	doOXcrossover(candidateOffsprings[2], parents, start, end);
-	doOXcrossover(candidateOffsprings[3], parents, start, end);
+	doModifiedOXcrossover(candidateOffsprings[3], parents, start, end);
 
 	// Return the best individual of the two, based on penalizedCost
 	return candidateOffsprings[2]->myCostSol.penalizedCost < candidateOffsprings[3]->myCostSol.penalizedCost
 		? candidateOffsprings[2]
 		: candidateOffsprings[3];
 }
+
 
 void Genetic::doOXcrossover(Individual* result, std::pair<const Individual*, const Individual*> parents, int start, int end)
 {
@@ -142,6 +147,59 @@ void Genetic::doOXcrossover(Individual* result, std::pair<const Individual*, con
 	{
 		// Check if the next client is already copied in place
 		int temp = parents.second->chromT[(end + i) % params->nbClients];
+		// If the client is not yet copied in place, copy in place now
+		if (freqClient[temp] == false)
+		{
+			result->chromT[j % params->nbClients] = temp;
+			j++;
+		}
+	}
+
+	// Completing the individual with the Split algorithm
+	split->generalSplit(result, params->nbVehicles);
+}
+
+void Genetic::doModifiedOXcrossover(Individual* result, std::pair<const Individual*, const Individual*> parents, int start, int end)
+{
+	// Frequency vector to track the clients which have been inserted already
+	std::vector<bool> freqClient = std::vector<bool>(params->nbClients + 1, false);
+	
+	// Shift zone in p2 to match final customer of zone in p1
+	int start1 = start, end1 = end;
+	int start2 = start, end2 = end;
+	while (parents.second->chromT[end2 % params->nbClients] != parents.first->chromT[(end1) % params->nbClients]){
+		start2++; 
+		end2++;
+	}
+	
+	// Test if zone in p1 is different to zone in p2
+	 bool same = true;
+	 int size = (start1 < end1 ? end1 - start1 : params->nbClients - start1 + end1);
+	 for (int j = 0; j < size && same; j++)
+	 {
+	 if (parents.first->chromT[(start1 + j) % params->nbClients] != parents.second->chromT[(start2 + j) % params->nbClients])
+	 same = false;
+	 }
+	 
+	 // If same, randomize point in p2
+	if (same)
+	end2 = end2 + params->rng() % (params->nbClients - size);
+	
+	// Copy in place the elements from start to end (possibly "wrapping around" the end of the array)
+	int j = start1;
+	while (j % params->nbClients != (end1 + 1) % params->nbClients)
+	{
+		result->chromT[j % params->nbClients] = parents.first->chromT[j % params->nbClients];
+		// Mark the client as copied
+		freqClient[result->chromT[j % params->nbClients]] = true;
+		j++;
+	}
+
+	// Fill the remaining elements in the order given by the second parent
+	for (int i = 1; i <= params->nbClients; i++)
+	{
+		// Check if the next client is already copied in place
+		int temp = parents.second->chromT[(end2 + i) % params->nbClients];
 		// If the client is not yet copied in place, copy in place now
 		if (freqClient[temp] == false)
 		{

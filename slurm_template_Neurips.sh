@@ -24,6 +24,7 @@ module load python-3.9.9-gcc-11.2.0-k7juzmi
 source env/bin/activate
 
 ##### JOB COMMANDS ####
-python results.py w
+#python results.py w
 python controller.py --instance $SLURM_ARRAY_TASK_ID --epoch_tlim 60 -- python solver.py --verbose --strategy modifiedknearest
-python results.py r modifiedknearest
+#python controller.py --instance $SLURM_ARRAY_TASK_ID --epoch_tlim 240 --static -- python solver.py --verbose --strategy modifiedknearest
+#python results.py r modifiedknearest

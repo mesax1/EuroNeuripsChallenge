@@ -10,7 +10,6 @@ from environment import VRPEnvironment
 import os
 
 
-
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()

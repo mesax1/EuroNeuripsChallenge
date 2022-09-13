@@ -71,6 +71,7 @@ public:
 		double fractionGeneratedNearest = 0.05;				// Proportion of individuals constructed by nearest-first
 		double fractionGeneratedFurthest = 0.05;			// Proportion of individuals constructed by furthest-first
 		double fractionGeneratedSweep = 0.05;				// Proportion of individuals constructed by sweep
+		double fractionGeneratedRegretNearest = 0.00;		// Proportion of individuals constructed by regret nearest-first
 		double fractionGeneratedRandomly = 0.85;			// Proportion of individuals constructed randomly
 		int minSweepFillPercentage = 60;					// Fill rate in BKS is always more than 40%, so I don't think less than this would make sense.
 															// The maximum vehicle usage is 40% (100/250 routes, see SINTEF BKS),

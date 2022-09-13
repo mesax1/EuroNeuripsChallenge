@@ -63,6 +63,7 @@ private:
 	Individual* crossoverOX(std::pair<const Individual*, const Individual*> parents);
 	// Function to do one (in place) OX Crossover for one individual 'result', given the two parents and the beginning and end (inclusive) of the crossover zone
 	void doOXcrossover(Individual* result, std::pair<const Individual*, const Individual*> parents, int start, int end);
+	void doModifiedOXcrossover(Individual* result, std::pair<const Individual*, const Individual*> parents, int start, int end);
 
 	// Function to do two SREX Crossovers for a pair of individuals (the two parents) and return the best individual based on penalizedCost
 	Individual* crossoverSREX(std::pair<const Individual*, const Individual*> parents);

@@ -5,10 +5,14 @@ from environment import State
 import sys
 from functools import cmp_to_key
 
+
 def _filter_instance(observation: State, mask: np.ndarray):
     res = {}
 
-    for key, value in observation.items(): 
+    for key, value in observation.items():
+        if key in ('observation', 'static_info'):
+            continue
+
         if key == 'capacity':
             res[key] = value
             continue
@@ -35,26 +39,10 @@ def get_time_neighbors(duration_matrix, i, num_neighbors):
         neighbors.append(distances[i][0])
     return neighbors
 
-# Locate the k furthest neighbors
-def get_furthest_neighbors(duration_matrix, i, num_neighbors):
-    distances = list()
-    for j in range(len(duration_matrix)):
-        dist = duration_matrix[i][j] + duration_matrix[j][i]
-        distances.append((j, dist))
-    distances.sort(key=lambda tup: tup[1], reverse=True)
-    neighbors = list()
-    max_neighbors = min(num_neighbors, len(duration_matrix))
-    for i in range(max_neighbors):
-        neighbors.append(distances[i][0])
-    return neighbors
-
-
 def _greedy(observation: State, rng: np.random.Generator):
-    return {
-        **observation,
-        'must_dispatch': np.ones_like(observation['must_dispatch']).astype(np.bool8)
-    }
-
+    mask = np.copy(observation['must_dispatch'])
+    mask[:] = True
+    return _filter_instance(observation, mask)
 
 
 def _lazy(observation: State, rng: np.random.Generator):
@@ -168,7 +156,6 @@ def _knearest_time(observation: State, rng: np.random.Generator):
     return _filter_instance(observation, mask)
 
 def _modified_knearest_time(observation: State, rng: np.random.Generator):
-    #log(observation)
     mask = np.copy(observation['must_dispatch'])
     new_mask = np.copy(observation['must_dispatch'])
     mask[0] = True
@@ -177,16 +164,16 @@ def _modified_knearest_time(observation: State, rng: np.random.Generator):
         
     
     # Locate the k furthest neighbors
-    # def get_furthest_neighbors(duration_matrix, i, num_neighbors):
-    # 	distances = list()
-    # 	for j in range(len(duration_matrix)):
-    #         dist = duration_matrix[i][j] + duration_matrix[j][i]
-    #         distances.append((j, dist))
-    # 	distances.sort(key=lambda tup: tup[1], reverse=True)
-    # 	neighbors = list()
-    # 	for i in range(num_neighbors):
-    # 		neighbors.append(distances[i][0])
-    # 	return neighbors
+    def get_furthest_neighbors(duration_matrix, i, num_neighbors):
+    	distances = list()
+    	for j in range(len(duration_matrix)):
+            dist = duration_matrix[i][j] + duration_matrix[j][i]
+            distances.append((j, dist))
+    	distances.sort(key=lambda tup: tup[1], reverse=True)
+    	neighbors = list()
+    	for i in range(num_neighbors):
+    		neighbors.append(distances[i][0])
+    	return neighbors
     
     
     def modify_mask_of_neighbors(mask, k):
@@ -207,17 +194,12 @@ def _modified_knearest_time(observation: State, rng: np.random.Generator):
         return new_mask
     
     # Obtain k neighbors for each customer with 'must_dispatch'
-    k = 7
-    #k = min(6,len(observation['must_dispatch'])//(sum(new_mask)))
-    #k = end_epoch + 1 - current_epoch//3
-    #k = max(end_epoch, end_epoch +6 - current_epoch)
+    k = 6
     new_mask = modify_mask_of_neighbors(new_mask, k)
-    
     
     limit_iterations = 0
     while (sum(new_mask) < len(observation['must_dispatch'])*.95):
-        #k = max(6,len(observation['must_dispatch'])//(sum(new_mask)//2))
-        k = k - 1 
+        k = k+1
         new_mask = modify_mask_of_neighbors(new_mask, k)
         limit_iterations += 1
         if limit_iterations >= 1:
@@ -270,7 +252,11 @@ def _find_solitary(observation: State, rng: np.random.Generator):
         for i in range(len(observation['must_dispatch'])):
             if mask[i] == True:
                 if i == 0: #If depot
-                    continue
+                    must_dispatches = sum(mask)
+                    if must_dispatches < 10:
+                        neighbors = get_time_neighbors(observation['duration_matrix'], i, k)
+                        for neighbor in neighbors:
+                            new_mask[neighbor] = True
                 else:
                     neighbors = get_time_neighbors(observation['duration_matrix'], i, k)
                     for neighbor in neighbors:
@@ -279,15 +265,14 @@ def _find_solitary(observation: State, rng: np.random.Generator):
     
     #Execute
     [q_10, q_15, q_25, q_50, q_75] = get_radius_quantiles(observation['duration_matrix'])
-    threshold = len(observation['must_dispatch'])//5
+    threshold = len(observation['must_dispatch'])//6
+    #threshold = 15
     radius = q_10
     mask = modify_mask_of_customers(mask, radius, threshold)
     new_mask = np.copy(mask)
     
     # Obtain k neighbors for each customer with 'must_dispatch'
-    k = 6
-    k = current_epoch + 3
-    k = end_epoch + 2 - current_epoch//2
+    k = 2
     new_mask = modify_mask_of_neighbors(new_mask, k)
     
     limit_iterations = 0
@@ -295,12 +280,11 @@ def _find_solitary(observation: State, rng: np.random.Generator):
         k = k+1
         new_mask = modify_mask_of_neighbors(new_mask, k)
         limit_iterations += 1
-        if limit_iterations >= 1:
+        if limit_iterations >= 4:
             break
     
     
     return _filter_instance(observation, new_mask)
-    
 
 def log(obj, newline=True, flush=False):
     # Write logs to stderr since program uses stdout to communicate with controller
@@ -309,7 +293,6 @@ def log(obj, newline=True, flush=False):
         sys.stderr.write('\n')
     if flush:
         sys.stderr.flush()
-        
 
 def _get_must_dispatch(observation: State, rng: np.random.Generator): #Si no hay must_dispatch obligatorios obtengo los 10 nearest
     # log(observation['must_dispatch'])
@@ -318,10 +301,42 @@ def _get_must_dispatch(observation: State, rng: np.random.Generator): #Si no hay
     # log(new_mask)
     # log("---------------\n")
     # log(sum(new_mask) )
+    """
     if(sum(new_mask) < 10): 
         neighbors = get_time_neighbors(observation['duration_matrix'], 0, 10)
         for neighbor in neighbors:
             new_mask[neighbor] = True
+    """
+    def modify_mask_of_neighbors(mask, k):
+        new_mask = np.copy(mask)
+        for i in range(len(observation['must_dispatch'])):
+            if mask[i] == True:
+                if i == 0: #If depot, get furthest neighbors instead of nearest
+                    must_dispatches = sum(mask)
+                    if must_dispatches < 10:
+                        #neighbors = get_furthest_neighbors(observation['duration_matrix'], i, k)
+                        neighbors = get_time_neighbors(observation['duration_matrix'], i, k)
+                        for neighbor in neighbors:
+                            new_mask[neighbor] = True
+                else:
+                    neighbors = get_time_neighbors(observation['duration_matrix'], i, k)
+                    for neighbor in neighbors:
+                        new_mask[neighbor] = True
+        return new_mask
+    
+    # Obtain k neighbors for each customer with 'must_dispatch'
+    k = 8
+    new_mask = modify_mask_of_neighbors(new_mask, k)
+    limit_iterations = 0
+    while (sum(new_mask) < len(observation['must_dispatch'])*.95):
+        
+        k = k - 4
+        new_mask = modify_mask_of_neighbors(new_mask, k)
+        limit_iterations += 1
+        if limit_iterations >= 1:
+            break
+
+
         
     return _filter_instance(observation, new_mask)
 
@@ -408,10 +423,10 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
         
         
         
-        log("------------------------------------------------------------")
-        for x in route_precompute:
-            log(f"id_client -> {x.id_client} limite_inferior -> {x.limite_inferior} limite_superior -> {x.limite_superior} tiempo_servicio -> {x.tiempo_servicio} tiempo_viaje -> {x.tiempo_viaje} tiempo_llegada -> {x.tiempo_llegada} tiempo_mas_tarde -> {x.tiempo_mas_tarde}")
-        log("------------------------------------------------------------")
+        #log("------------------------------------------------------------")
+        #for x in route_precompute:
+            #log(f"id_client -> {x.id_client} limite_inferior -> {x.limite_inferior} limite_superior -> {x.limite_superior} tiempo_servicio -> {x.tiempo_servicio} tiempo_viaje -> {x.tiempo_viaje} tiempo_llegada -> {x.tiempo_llegada} tiempo_mas_tarde -> {x.tiempo_mas_tarde}")
+        #log("------------------------------------------------------------")
         
         route_precompute = (route_precompute, occupied_capacity)
         return route_precompute
@@ -420,15 +435,26 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
     for route in partial_routes:
         routes_precompute.append(create_route_info(route))
         
-    
-    # for route in routes_precompute:
-    #     log(route[1])
+    log(f"\n Routes capacity: {observation['capacity']} ")
+    costo_todas_las_rutas = 0
+    for route in routes_precompute:
+         #log(f" Route total demand: {route[1]}")
+         mostrar_clientes = []
+         costo_ruta = 0
+         for customer in route[0]:
+             mostrar_clientes.append(customer.id_client)
+             costo_ruta += customer.tiempo_viaje
+         #log(f"Clientes: {mostrar_clientes}")
+         log(f"Obligatory Route total demand: {route[1]}, Costo de ruta: {costo_ruta}, Clientes: {mostrar_clientes}")
+         costo_todas_las_rutas += costo_ruta
+    log(f"Number of routes: {len(routes_precompute)}, Costo de todas las rutas: {costo_todas_las_rutas}")
+
     class Best_ans:
-        def __init_(self):
-            self.dist = int(1e15)
-            self.id_client = -1 #Posicion del cliente en los epoch
-            self.route_position = -1 #La posicion de la ruta
-            self.left_client_position = -1
+        def __init__(self, dist, id_client, route_position, left_client_position):
+            self.dist = dist
+            self.id_client = id_client #Posicion del cliente en los epoch
+            self.route_position = route_position #La posicion de la ruta
+            self.left_client_position = left_client_position
             
     
     def insert_client(new_client : Best_ans):
@@ -461,22 +487,93 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
 
         occupied_capacity = routes_precompute[new_client.route_position][1] + observation['demands'][id_client]
         routes_precompute[new_client.route_position] = (new_route, occupied_capacity)
-         
-    # log(partial_routes)
-    # log(unused_nodes)
-    # log(observation['demands'])
+
+    for node in unused_nodes:
+        if node[1] == False: # Si nodo no se encuentra en la solucion actual
+           continue
+        else:
+           flag = 0
+           current_node_id = node[0]
+           k = 8
+           neighbors = get_time_neighbors(observation['duration_matrix'], current_node_id, k)
+           for neighbor in neighbors:
+               node_id = neighbor
+               if new_mask[node_id] == True:
+                   continue
+               bestAns = Best_ans(1e15, -1, -1, -1)
+               for n_route, route in enumerate(routes_precompute): # iterar sobre las rutas y sobre su indice
+                   if observation['demands'][node_id]+route[1] > (0.9 * observation['capacity']): # Si supera el 90% de la capacidad del carro
+                      flag += 1 # suma una cuenta al flag para que determine si se sale del loop o no
+                   else:
+                      for i in range(1, len(route[0])):
+                          last_node = route[0][i-1]
+                          next_node = route[0][i]
+                          tiempo_llegada_1 = max(last_node.limite_inferior, last_node.tiempo_llegada) + observation['duration_matrix'][last_node.id_client][node_id] + observation['service_times'][last_node.id_client]
+                          limite_superior_1 = observation['time_windows'][node_id][1]
+                          if tiempo_llegada_1 <= limite_superior_1:
+                             limite_inferior_2 = observation['time_windows'][node_id][0]
+                             tiempo_llegada_2 = max(limite_inferior_2, tiempo_llegada_1) + observation['duration_matrix'][node_id][next_node.id_client] + observation['service_times'][node_id]
+                             if tiempo_llegada_2 <= next_node.tiempo_mas_tarde:
+                                added_distance = observation['duration_matrix'][node_id][next_node.id_client] + observation['duration_matrix'][last_node.id_client][node_id] - observation['duration_matrix'][last_node.id_client][next_node.id_client]
+                                if added_distance < bestAns.dist:
+                                   bestAns = Best_ans(added_distance, node_id, n_route, i-1)
+                          else:
+                              break
+
+               if bestAns.id_client >= 0:
+                  insert_client(bestAns)
+                  new_mask[bestAns.id_client] = True
+                  break
+
+               if flag == len(routes_precompute):
+                   break    
+
+
     
-    
-    
-    
-    
-    return _filter_instance(observation, new_mask)
+    log(f"\n Routes capacity: {observation['capacity']} ")
+    costo_todas_las_rutas = 0
+    for route in routes_precompute:
+         #log(f"New Route total demand: {route[1]}")
+         mostrar_clientes = []
+         costo_ruta = 0
+         for customer in route[0]:
+             mostrar_clientes.append(customer.id_client)
+             costo_ruta += customer.tiempo_viaje
+         #log(f"Clientes: {mostrar_clientes}")
+         log(f"New Route total demand: {route[1]}, Costo de ruta: {costo_ruta}, Clientes: {mostrar_clientes}")
+         costo_todas_las_rutas += costo_ruta
+    log(f"Number of routes: {len(routes_precompute)}, Costo de todas las rutas: {costo_todas_las_rutas}")
+
+    return _filter_instance(observation, new_mask)    
+
+def _supervised(observation: State, rng: np.random.Generator, net):
+    from baselines.supervised.transform import transform_one
+    mask = np.copy(observation['must_dispatch'])
+    mask = mask | net(transform_one(observation)).argmax(-1).bool().numpy()
+    mask[0] = True
+    return _filter_instance(observation, mask)
+
+
+def _dqn(observation: State, rng: np.random.Generator, net):
+    import torch
+    from baselines.dqn.utils import get_request_features
+    actions = []
+    epoch_instance = observation
+    observation, static_info = epoch_instance.pop('observation'), epoch_instance.pop('static_info')
+    request_features, global_features = get_request_features(observation, static_info, net.k_nearest)
+    all_features = torch.cat((request_features, global_features[None, :].repeat(request_features.shape[0], 1)), -1)
+    actions = net(all_features).argmax(-1).detach().cpu().tolist()
+    mask = epoch_instance['must_dispatch'] | (np.array(actions) == 0)
+    mask[0] = True  # Depot always included in scheduling
+    return _filter_instance(epoch_instance, mask)
 
 
 STRATEGIES = dict(
     greedy=_greedy,
     lazy=_lazy,
     random=_random,
+    supervised=_supervised,
+    dqn=_dqn,
     random25=_random25,
     random75=_random75,
     random85=_random85,
@@ -487,4 +584,5 @@ STRATEGIES = dict(
     findsolitary = _find_solitary,
     getMustDispatch = _get_must_dispatch,
     f1 = _f1
+
 )

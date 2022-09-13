@@ -309,6 +309,152 @@ void LocalSearch::constructIndividualWithSeedOrder(int toleratedCapacityViolatio
 	exportIndividual(indiv);
 }
 
+
+
+void LocalSearch::constructIndividualWithSeedOrderAndRegret(int toleratedCapacityViolation, int toleratedTimeWarp,
+	bool useSeedClientFurthestFromDepot, Individual* indiv)
+{
+	std::vector<NodeToInsert> nodesToInsert;
+	initializeConstruction(indiv, &nodesToInsert);
+	
+	std::set<int> unassignedNodeIndices;
+	for (int i = 1; i <= params->nbClients; i++)
+	{
+		unassignedNodeIndices.insert(i - 1);
+	}
+	
+	
+
+	// Construct routes
+	for (int r = 0; r < static_cast<int>(routes.size()) && unassignedNodeIndices.size() > 0; r++)
+	{
+		// Note that if the seed client is the unassigned client closest to the depot, we do not
+		// have to do any initialization and can just start inserting nodes that are best according
+		// to distance in the main loop.
+		if (useSeedClientFurthestFromDepot)
+		{
+			int furthestNodeIdx = -1;
+			double furthestNodeCost = -1.0;
+			for (int idx : unassignedNodeIndices)
+			{
+				double insertionCost = params->timeCost.get(routes[r].depot->cour, nodesToInsert[idx].clientIdx) +
+					params->timeCost.get(nodesToInsert[idx].clientIdx, routes[r].depot->next->cour) -
+					params->timeCost.get(routes[r].depot->cour, routes[r].depot->next->cour);
+
+				if (insertionCost > furthestNodeCost)
+				{
+					furthestNodeCost = insertionCost;
+					furthestNodeIdx = idx;
+				}
+			}
+
+			Node* toInsert = &clients[nodesToInsert[furthestNodeIdx].clientIdx];
+			toInsert->prev = routes[r].depot;
+			toInsert->next = routes[r].depot->next;
+			routes[r].depot->next->prev = toInsert;
+			routes[r].depot->next = toInsert;
+			updateRouteData(&routes[r]);
+			unassignedNodeIndices.erase(furthestNodeIdx);
+		}
+
+		bool insertedNode = true;
+		while (insertedNode)
+		{
+			insertedNode = false;
+			double bestCost = std::numeric_limits<double>::max();
+			double bestRegret = -1;
+			Node* bestPred = nullptr;
+			int bestNodeIdx;
+			for (int idx : unassignedNodeIndices)
+			{
+				// Do not allow insertion if capacity is exceeded more than tolerance.
+				if (routes[r].load + nodesToInsert[idx].load > params->vehicleCapacity + toleratedCapacityViolation)
+					continue;
+
+				Node* prev = routes[r].depot;
+				
+				double tempBestCost = std::numeric_limits<double>::max();
+				double tempSecondCost = std::numeric_limits<double>::max();
+				double tempBestRegret = std::numeric_limits<double>::max();
+				Node* tempBestPred = nullptr;
+				int tempBestNodeIdx; 
+				for (int j = 0; j <= routes[r].nbCustomers; j++)
+				{
+					// Do not allow insertions if time windows are violated more than tolerance
+					TimeWindowData routeTwData =
+						MergeTWDataRecursive(prev->prefixTwData, nodesToInsert[idx].twData, prev->next->postfixTwData);
+					if (routeTwData.timeWarp > toleratedTimeWarp)
+					{
+						prev = prev->next;
+						continue;
+					}
+
+					// Compute insertion cost
+					double insertionCost = params->timeCost.get(prev->cour, nodesToInsert[idx].clientIdx) +
+						params->timeCost.get(nodesToInsert[idx].clientIdx, prev->next->cour) -
+						params->timeCost.get(prev->cour, prev->next->cour);
+
+					if (insertionCost < tempBestCost)
+					{
+						tempSecondCost = tempBestCost;
+						tempBestCost = insertionCost;
+						tempBestPred = prev;
+						tempBestNodeIdx = idx;
+						tempBestRegret = tempSecondCost - tempBestCost;
+					}
+
+					prev = prev->next;
+				}
+				if (tempBestRegret > bestRegret)
+					{	
+						bestRegret = tempBestRegret;
+						bestCost = tempBestCost;
+						bestPred = tempBestPred;
+						bestNodeIdx = tempBestNodeIdx;
+					}
+			}
+
+			if (bestCost < std::numeric_limits<double>::max())
+			{
+				Node* toInsert = &clients[nodesToInsert[bestNodeIdx].clientIdx];
+				toInsert->prev = bestPred;
+				toInsert->next = bestPred->next;
+				bestPred->next->prev = toInsert;
+				bestPred->next = toInsert;
+				updateRouteData(&routes[r]);
+				insertedNode = true;
+				unassignedNodeIndices.erase(bestNodeIdx);
+			}
+		}
+	}
+
+	// Insert all unassigned nodes at the back of the last route. We assume that typically there
+	// are no unassigned nodes left, because there are plenty routes, but we have to make sure that
+	// all nodes are assigned.
+	if (unassignedNodeIndices.size() > 0)
+	{
+		int lastRouteIdx = routes.size() - 1;
+		Node* prevNode = depotsEnd[lastRouteIdx].prev; // Last node before finish depot in last route.
+
+		while (unassignedNodeIndices.size() > 0)
+		{
+			int idx = *unassignedNodeIndices.begin();
+			Node* toInsert = &clients[nodesToInsert[idx].clientIdx];
+			toInsert->prev = prevNode;
+			toInsert->next = prevNode->next;
+			prevNode->next->prev = toInsert;
+			prevNode->next = toInsert;
+			unassignedNodeIndices.erase(idx);
+		}
+
+		updateRouteData(&routes[lastRouteIdx]);
+	}
+
+	// Register the solution produced by the construction heuristic in the individual.
+	exportIndividual(indiv);
+}
+
+
 void LocalSearch::run(Individual* indiv, double penaltyCapacityLS, double penaltyTimeWarpLS)
 {
 	static const bool neverIntensify = params->config.intensificationProbabilityLS == 0;

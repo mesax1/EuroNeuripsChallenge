@@ -51,6 +51,7 @@ void Population::generatePopulation()
 	}
 
 	// ------- The below parameters are configurable through command line arguments ---------
+	double fractionGeneratedRegretNearest = params->config.fractionGeneratedRegretNearest;
 	double fractionGeneratedNearest = params->config.fractionGeneratedNearest;
 	double fractionGeneratedFurthest = params->config.fractionGeneratedFurthest;
 	double fractionGeneratedSweep = params->config.fractionGeneratedSweep;
@@ -74,7 +75,29 @@ void Population::generatePopulation()
 	int nofFurthestIndividualsToGenerate = round(fractionGeneratedFurthest * nofIndividuals);
 	int nofSweepIndividualsToGenerate = round(fractionGeneratedSweep * nofIndividuals);
 	int nofRandomIndividualsToGenerate = round(fractionGeneratedRandomly * nofIndividuals);
+	int nofRegretNearestIndividualsToGenerate = round(fractionGeneratedRegretNearest * nofIndividuals);
+	
+	// Generate some individuals using the REGRET NEAREST construction heuristic
+	for (int i = 0; i < nofRegretNearestIndividualsToGenerate; i++)
+	{
+		if (params->isTimeLimitExceeded())
+		{
+			std::cout << "Time limit during generation of initial population" << std::endl;
+			printState(-1, -1);
+			return;
+		}
+		// Create the first individual without violations
+		int toleratedCapacityViolation = i == 0 ? 0 : params->rng() % (maxToleratedCapacityViolation + 1);
+		int toleratedTimeWarp = i == 0 ? 0 : params->rng() % (maxToleratedTimeWarp + 1);
+		Individual indiv(params, false);
+		localSearch->constructIndividualWithSeedOrderAndRegret(toleratedCapacityViolation, toleratedTimeWarp, false, &indiv);
+		doLocalSearchAndAddIndividual(&indiv);
+	}
 
+	// Output that some individuals have been created
+	std::cout << "Generated " << nofRegretNearestIndividualsToGenerate << " individuals using Regret-Nearest" << std::endl;
+	printState(-1, -1);
+	
 	// Generate some individuals using the NEAREST construction heuristic
 	for (int i = 0; i < nofNearestIndividualsToGenerate; i++)
 	{
