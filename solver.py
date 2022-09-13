@@ -1,4 +1,5 @@
 # Solver for Dynamic VRPTW, baseline strategy is to use the static solver HGS-VRPTW repeatedly
+import graficar
 import argparse
 import subprocess
 import sys
@@ -142,6 +143,7 @@ def run_baseline(args, env, oracle_solution=None, strategy=None):
             # log(epoch_instance)
             # [log(f" Route {route} Demands {sum(epoch_instance['demands'][route])}") for route in unchanged_epoch_solution]
             partial_epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in partial_epoch_solution]
+            graficar.graficar(epoch_instance, partial_epoch_solution, client_id)
             epoch_instance_dispatch = STRATEGIES['f1'](epoch_instance, rng, partial_epoch_solution, client_id)
             solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=epoch_tlim, tmp_dir=args.tmp_dir, seed=args.solver_seed))
 

@@ -2,3 +2,5 @@
 .flake8
 tmp
 submissions
+venv
+__pycache__
