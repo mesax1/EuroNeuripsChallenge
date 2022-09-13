@@ -77,7 +77,7 @@ public:
 															// so take 60% to have some margin (otherwise all remaining orders will be in last route)
 		int maxToleratedCapacityViolation = 50;				// In the instance I checked vehicle capacity was 1000, so max 5% could make sense.
 		int maxToleratedTimeWarp = 100;						// No real feeling yet for what value makes sense.
-		double initialTimeWarpPenalty = 1.0;				// This was the default until now, but with this value feasible individuals often
+		double initialTimeWarpPenalty = 1.0;				// This was the default until now, but with this value 1.0 feasible individuals often
 															// become infeasible during the local search in doLocalSearchAndAddIndividual.
 															// With initialTimeWarpPenalty = 10, this does not happen.
 		double penaltyBooster = 2.;							// Set to value > 0, so penalty will get multiplied by this value (instead of default 1.2) if num feasible == 0
