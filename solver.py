@@ -125,8 +125,13 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None):
             cost = tools.validate_dynamic_epoch_solution(epoch_instance, epoch_solution)
         else:
             # Select the requests to dispatch using the strategy
+<<<<<<< HEAD
             # Note: DQN strategy requires more than just epoch instance, bit hacky for compatibility with other strategies
             #epoch_instance_dispatch = strategy({**epoch_instance, 'observation': observation, 'static_info': static_info}, rng)
+=======
+            # TODO improved better strategy (machine learning model?) to decide which non-must requests to dispatch
+            epoch_instance_dispatch = STRATEGIES[strategy](epoch_instance, rng, observation['current_epoch'], static_info['end_epoch'])
+>>>>>>> cf07da2... Improved the modifiedknearest strategy
 
             # Run HGS with time limit and get last solution (= best solution found)
             # Note we use the same solver_seed in each epoch: this is sufficient as for the static problem
@@ -196,6 +201,7 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None):
             num_requests_open = len(epoch_instance['request_idx']) - 1
             num_requests_postponed = num_requests_open - num_requests_dispatched
             log(f" {num_requests_dispatched:3d}/{num_requests_open:3d} dispatched and {num_requests_postponed:3d}/{num_requests_open:3d} postponed | Routes: {len(epoch_solution):2d} with cost {cost:6d}")
+            #log(f" Epoch number: {observation['current_epoch']}")
             #log(f" Instance capacity: {epoch_instance['capacity']}")
             #[log(f" Route {route} Demands {sum(epoch_instance['demands'][route])}") for route in unchanged_epoch_solution]
             #[log(f" Route {route} Cost {tools.compute_route_driving_time(route, epoch_instance['duration_matrix'])}") for route in unchanged_epoch_solution]
