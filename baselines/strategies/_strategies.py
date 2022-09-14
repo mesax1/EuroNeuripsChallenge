@@ -567,6 +567,52 @@ def _dqn(observation: State, rng: np.random.Generator, net):
     mask[0] = True  # Depot always included in scheduling
     return _filter_instance(epoch_instance, mask)
 
+def _all_must_dispatch(observation: State, rng: np.random.Generator):  # Si no hay must_dispatch obligatorios obtengo los 10 nearest
+    # log(observation['must_dispatch'])
+    new_mask = np.copy(observation['must_dispatch'])
+    for i in range(len(new_mask)):
+        new_mask[i] = True
+    return _filter_instance(observation, new_mask)
+
+def _f2(observation: State, rng: np.random.Generator, partial_routes: list, client_ids: dict):
+    # log(partial_routes)
+    # log(observation)
+    new_mask = np.copy(observation['must_dispatch'])  # REVISAR SI SI SE ESTA COPIANDO BIEN LA MASCARA
+    new_mask[0] = True
+    average_costs = []
+    alpha = 0.9
+    for i in range(len(partial_routes)):
+        log(partial_routes[i])
+        partial_routes[i] = np.insert(partial_routes[i], 0, 0)
+        partial_routes[i] = np.append(partial_routes[i], 0)
+        route_info = []
+        for j in range(len(partial_routes[i])-1):
+            client = client_ids[partial_routes[i][j]]
+            next_client = client_ids[partial_routes[i][j+1]]
+            route_info.append(observation['duration_matrix'][client][next_client])
+        average_costs.append(np.mean(route_info))
+
+    for i in range(len(partial_routes)):
+        for j in range(1, len(partial_routes[i]) - 1):
+            if new_mask[client_ids[partial_routes[i][j]]] is not True:
+                last_node = client_ids[partial_routes[i][j-1]]
+                last_node_cost = observation['duration_matrix'][last_node][client_ids[partial_routes[i][j]]]
+                next_node = client_ids[partial_routes[i][j+1]]
+                next_node_cost = observation['duration_matrix'][client_ids[partial_routes[i][j]]][next_node]
+                saved_cost = last_node_cost + next_node_cost - observation['duration_matrix'][last_node][next_node]
+                if saved_cost < (average_costs[i]*alpha):
+                    new_mask[client_ids[partial_routes[i][j]]] = True
+                #else:
+
+
+    return _filter_instance(observation, new_mask)
+
+
+
+
+
+
+
 
 STRATEGIES = dict(
     greedy=_greedy,
@@ -583,6 +629,7 @@ STRATEGIES = dict(
     modifiedknearest = _modified_knearest_time,
     findsolitary = _find_solitary,
     getMustDispatch = _get_must_dispatch,
-    f1 = _f1
-
+    f1 = _f1,
+    allmustdispatch = _all_must_dispatch,
+    f2 = _f2
 )
