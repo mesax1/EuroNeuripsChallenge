@@ -1,0 +1,3 @@
+nombre;numero;costo;metodo;alpha
+ORTEC-VRPTW-ASYM-a69bcc0c-d1-n249-k20.txt;1;364165;modifiedknearest;NaN
+ORTEC-VRPTW-ASYM-a69bcc0c-d1-n249-k20.txt;1;364506;f2;0.5

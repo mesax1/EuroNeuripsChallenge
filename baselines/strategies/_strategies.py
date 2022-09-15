@@ -574,13 +574,13 @@ def _all_must_dispatch(observation: State, rng: np.random.Generator):  # Si no h
         new_mask[i] = True
     return _filter_instance(observation, new_mask)
 
-def _f2(observation: State, rng: np.random.Generator, partial_routes: list, client_ids: dict):
+def _f2(observation: State, rng: np.random.Generator, partial_routes: list, client_ids: dict, alpha: float):
     # log(partial_routes)
     # log(observation)
     new_mask = np.copy(observation['must_dispatch'])  # REVISAR SI SI SE ESTA COPIANDO BIEN LA MASCARA
     new_mask[0] = True
     average_costs = []
-    alpha = 0.9
+    alpha = alpha
     for i in range(len(partial_routes)):
         log(partial_routes[i])
         partial_routes[i] = np.insert(partial_routes[i], 0, 0)

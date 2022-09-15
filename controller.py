@@ -92,3 +92,13 @@ if __name__ == "__main__":
     f = open("aux.txt", "a")
     f.write(f"{sum(env.final_costs.values())}\n")
     f.close()
+
+    csv = open("instance_info.txt", "a")
+    if solver_cmd[-1][:2] == "f2":
+        strategy = "f2"
+        alpha = solver_cmd[-1][2:]
+    else:
+        strategy = solver_cmd[-1]
+        alpha = "NaN"
+    csv.write(f"\n{entries[int(args.instance)]};{args.instance};{sum(env.final_costs.values())};{strategy};{alpha}")
+    csv.close()
