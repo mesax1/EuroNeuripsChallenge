@@ -604,7 +604,7 @@ def _f2(observation: State, rng: np.random.Generator, partial_routes: list, clie
                     new_mask[client_ids[partial_routes[i][j]]] = True
                 #else:
 
-
+    
     return _filter_instance(observation, new_mask)
 
 

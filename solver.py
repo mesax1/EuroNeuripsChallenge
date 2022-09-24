@@ -139,17 +139,19 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, alph
             solutions = []
             epoch_instance_dispatch = epoch_instance
             log(f"\n Must dispatch: {sum(epoch_instance['must_dispatch'])}, number_of_customers: {len(epoch_instance['must_dispatch'])-1}")
+            client_id = dict()
+            for xi in range(len(epoch_instance['request_idx'])):
+                client_id[epoch_instance['request_idx'][xi]] = xi
+            
             if sum(epoch_instance['must_dispatch']) == len(epoch_instance['must_dispatch'])-1:
                 solutions = list(solve_static_vrptw(epoch_instance, time_limit=epoch_tlim, tmp_dir=args.tmp_dir, seed=args.solver_seed))
+                
             else:
                 """
                 epoch_instance_dispatch = STRATEGIES['modifiedknearest'](epoch_instance, rng)
                 solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=epoch_tlim, tmp_dir=args.tmp_dir, seed=args.solver_seed))
                 """
-                client_id = dict()
-                for xi in range(len(epoch_instance['request_idx'])):
-                    client_id[epoch_instance['request_idx'][xi]] = xi
-                
+        
                 epoch_instance_dispatch = STRATEGIES['allmustdispatch'](epoch_instance, rng)
                 initial_time_limit = epoch_tlim//3
                 final_time_limit = epoch_tlim - initial_time_limit
@@ -162,13 +164,14 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, alph
                 epoch_instance_dispatch = STRATEGIES['f2'](epoch_instance, rng, partial_epoch_solution, client_id, alpha_parameter)
                 solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=final_time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))            #------------------
                 
+                
             assert len(solutions) > 0, f"No solution found during epoch {observation['current_epoch']}"
             epoch_solution, cost = solutions[-1]
-            # graficar.graficar(epoch_instance, epoch_solution, client_id)
 
             # Map HGS solution to indices of corresponding requests
             unchanged_epoch_solution = list(epoch_solution)
             epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in epoch_solution]
+            graficar.graficar(epoch_instance, epoch_solution, client_id, epoch_instance_dispatch)
             
             log(f"\n Routes capacity: {epoch_instance_dispatch['capacity']} ")
             costo_todas_las_rutas = 0
