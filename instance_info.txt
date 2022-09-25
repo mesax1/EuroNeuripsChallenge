@@ -4,3 +4,7 @@ ORTEC-VRPTW-ASYM-a69bcc0c-d1-n249-k20.txt;1;364506;f2;0.5
 ORTEC-VRPTW-ASYM-30d4e457-d1-n290-k20.txt;0;457201;f2;1
 ORTEC-VRPTW-ASYM-30d4e457-d1-n290-k20.txt;0;461611;f2;1
 ORTEC-VRPTW-ASYM-efe3fa8e-d1-n346-k25.txt;1;252178;f2;1
+ORTEC-VRPTW-ASYM-a69bcc0c-d1-n249-k20.txt;1;365452;allmustdispatch;NaN
+ORTEC-VRPTW-ASYM-a69bcc0c-d1-n249-k20.txt;1;346014;allmustdispatch;NaN
+ORTEC-VRPTW-ASYM-a69bcc0c-d1-n249-k20.txt;1;348500;allmustdispatch;NaN
+ORTEC-VRPTW-ASYM-a69bcc0c-d1-n249-k20.txt;1;345723;knearestimedistance;2

@@ -608,6 +608,69 @@ def _f2(observation: State, rng: np.random.Generator, partial_routes: list, clie
     return _filter_instance(observation, new_mask)
 
 
+def _knearest_time_distance(observation: State, rng: np.random.Generator, factor: float):
+    mask = np.copy(observation['must_dispatch'])
+    new_mask = np.copy(observation['must_dispatch'])
+    mask[0] = True
+    new_mask[0] = True
+    log(f"parameter: {factor}")
+
+    def get_neighbors(duration_matrix, i, num_neighbors, alpha):
+        distances = list()
+        for j in range(len(duration_matrix)):
+            limite_superior_nodo = observation['time_windows'][i][1]
+            limite_inferior_nodo = observation['time_windows'][i][0]
+            limite_superior_vecino = observation['time_windows'][j][1]
+            limite_inferior_vecino = observation['time_windows'][j][0]
+            if limite_superior_nodo < limite_inferior_vecino:
+                if limite_inferior_vecino - limite_superior_nodo <= alpha:
+                    dist = duration_matrix[i][j] + duration_matrix[j][i]
+                    distances.append((j, dist))
+            elif limite_superior_vecino < limite_inferior_nodo:
+                if limite_inferior_nodo - limite_superior_vecino <= alpha:
+                    dist = duration_matrix[i][j] + duration_matrix[j][i]
+                    distances.append((j, dist))
+            else:
+                dist = duration_matrix[i][j] + duration_matrix[j][i]
+                distances.append((j, dist))
+        distances.sort(key=lambda tup: tup[1])
+        neighbors = list()
+        max_neighbors = min(num_neighbors, len(duration_matrix))
+        for i in range(max_neighbors):
+            neighbors.append(distances[i][0])
+        return neighbors
+
+    def modify_mask_of_neighbors(mask, k, alpha):
+        new_mask = np.copy(mask)
+        for i in range(len(observation['must_dispatch'])):
+            if mask[i] == True:
+                if i == 0:  # If depot, get furthest neighbors instead of nearest
+                    must_dispatches = sum(mask)
+                    if must_dispatches < 10:
+                        # neighbors = get_furthest_neighbors(observation['duration_matrix'], i, k)
+                        neighbors = get_neighbors(observation['duration_matrix'], i, k, alpha)
+                        for neighbor in neighbors:
+                            new_mask[neighbor] = True
+                else:
+                    neighbors = get_neighbors(observation['duration_matrix'], i, k, alpha)
+                    for neighbor in neighbors:
+                        new_mask[neighbor] = True
+        return new_mask
+
+    # Obtain k neighbors for each customer with 'must_dispatch'
+    k = 6
+    alpha = 3600*factor
+    new_mask = modify_mask_of_neighbors(new_mask, k, alpha)
+
+    limit_iterations = 0
+    while (sum(new_mask) < len(observation['must_dispatch']) * .95):
+        k = k + 1
+        new_mask = modify_mask_of_neighbors(new_mask, k, alpha)
+        limit_iterations += 1
+        if limit_iterations >= 1:
+            break
+
+    return _filter_instance(observation, new_mask)
 
 
 
@@ -631,5 +694,6 @@ STRATEGIES = dict(
     getMustDispatch = _get_must_dispatch,
     f1 = _f1,
     allmustdispatch = _all_must_dispatch,
-    f2 = _f2
+    f2 = _f2,
+    knearestimedistance = _knearest_time_distance
 )

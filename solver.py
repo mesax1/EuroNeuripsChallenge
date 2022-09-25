@@ -152,18 +152,21 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, alph
                 solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=epoch_tlim, tmp_dir=args.tmp_dir, seed=args.solver_seed))
                 """
         
-                epoch_instance_dispatch = STRATEGIES['allmustdispatch'](epoch_instance, rng)
-                initial_time_limit = epoch_tlim//3
-                final_time_limit = epoch_tlim - initial_time_limit
-                solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=initial_time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))
-                partial_epoch_solution, partial_cost = solutions[-1]
-                unchanged_epoch_solution = list(partial_epoch_solution)
+                epoch_instance_dispatch = STRATEGIES['knearestimedistance'](epoch_instance, rng, alpha_parameter)
+                #initial_time_limit = epoch_tlim//3
+                #final_time_limit = epoch_tlim - initial_time_limit
+                #solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=initial_time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))
+                #partial_epoch_solution, partial_cost = solutions[-1]
+                #unchanged_epoch_solution = list(partial_epoch_solution)
                 # log(epoch_instance)
                 # [log(f" Route {route} Demands {sum(epoch_instance['demands'][route])}") for route in unchanged_epoch_solution]
-                partial_epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in partial_epoch_solution]
-                epoch_instance_dispatch = STRATEGIES['f2'](epoch_instance, rng, partial_epoch_solution, client_id, alpha_parameter)
-                solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=final_time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))            #------------------
-                
+                # partial_epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in partial_epoch_solution]
+                # epoch_instance_dispatch = STRATEGIES['f2'](epoch_instance, rng, partial_epoch_solution, client_id, alpha_parameter)
+                #solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=final_time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))            #------------------
+
+                solutions = list(
+                    solve_static_vrptw(epoch_instance_dispatch, time_limit=epoch_tlim, tmp_dir=args.tmp_dir,
+                                       seed=args.solver_seed))
                 
             assert len(solutions) > 0, f"No solution found during epoch {observation['current_epoch']}"
             epoch_solution, cost = solutions[-1]
@@ -171,7 +174,7 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, alph
             # Map HGS solution to indices of corresponding requests
             unchanged_epoch_solution = list(epoch_solution)
             epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in epoch_solution]
-            graficar.graficar(epoch_instance, epoch_solution, client_id, epoch_instance_dispatch)
+            #graficar.graficar(epoch_instance, epoch_solution, client_id, epoch_instance_dispatch)
             
             log(f"\n Routes capacity: {epoch_instance_dispatch['capacity']} ")
             costo_todas_las_rutas = 0
@@ -280,6 +283,9 @@ if __name__ == "__main__":
                 if args.strategy[:2] == "f2":
                     strategy = STRATEGIES[args.strategy[:2]]
                     alpha = args.strategy[2:]
+                elif args.strategy[:19] == "knearestimedistance":
+                    strategy = STRATEGIES[args.strategy[:19]]
+                    alpha = args.strategy[19:]
                 else:
                     strategy = STRATEGIES[args.strategy]
                     alpha= 1

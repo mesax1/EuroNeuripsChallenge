@@ -97,6 +97,9 @@ if __name__ == "__main__":
     if solver_cmd[-1][:2] == "f2":
         strategy = "f2"
         alpha = solver_cmd[-1][2:]
+    elif solver_cmd[-1][:19] == "knearestimedistance":
+        strategy = "knearestimedistance"
+        alpha = solver_cmd[-1][19:]
     else:
         strategy = solver_cmd[-1]
         alpha = "NaN"
