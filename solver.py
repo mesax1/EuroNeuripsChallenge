@@ -151,22 +151,25 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, alph
                 epoch_instance_dispatch = STRATEGIES['modifiedknearest'](epoch_instance, rng)
                 solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=epoch_tlim, tmp_dir=args.tmp_dir, seed=args.solver_seed))
                 """
-        
-                epoch_instance_dispatch = STRATEGIES['knearestimedistance'](epoch_instance, rng, alpha_parameter)
-                #initial_time_limit = epoch_tlim//3
-                #final_time_limit = epoch_tlim - initial_time_limit
-                #solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=initial_time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))
-                #partial_epoch_solution, partial_cost = solutions[-1]
-                #unchanged_epoch_solution = list(partial_epoch_solution)
+
+                epoch_instance_dispatch = STRATEGIES['modifiedknearest'](epoch_instance, rng, observation['current_epoch'])
+                #epoch_instance_dispatch = STRATEGIES['knearestimedistance'](epoch_instance, rng, alpha_parameter)
+                #epoch_instance_dispatch = STRATEGIES['modifiedknearest'](epoch_instance, rng)
+                initial_time_limit = epoch_tlim//3
+                final_time_limit = epoch_tlim - initial_time_limit
+                solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=initial_time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))
+                partial_epoch_solution, partial_cost = solutions[-1]
+                unchanged_epoch_solution = list(partial_epoch_solution)
                 # log(epoch_instance)
                 # [log(f" Route {route} Demands {sum(epoch_instance['demands'][route])}") for route in unchanged_epoch_solution]
-                # partial_epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in partial_epoch_solution]
-                # epoch_instance_dispatch = STRATEGIES['f2'](epoch_instance, rng, partial_epoch_solution, client_id, alpha_parameter)
-                #solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=final_time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))            #------------------
+                partial_epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in partial_epoch_solution]
+                epoch_instance_dispatch = STRATEGIES['f1'](epoch_instance, rng, partial_epoch_solution, client_id)
+                #epoch_instance_dispatch = STRATEGIES['f2'](epoch_instance, rng, partial_epoch_solution, client_id, alpha_parameter)
+                solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=final_time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))            #------------------
 
-                solutions = list(
-                    solve_static_vrptw(epoch_instance_dispatch, time_limit=epoch_tlim, tmp_dir=args.tmp_dir,
-                                       seed=args.solver_seed))
+                #solutions = list(
+                    #solve_static_vrptw(epoch_instance_dispatch, time_limit=epoch_tlim, tmp_dir=args.tmp_dir,
+                                       #seed=args.solver_seed))
                 
             assert len(solutions) > 0, f"No solution found during epoch {observation['current_epoch']}"
             epoch_solution, cost = solutions[-1]

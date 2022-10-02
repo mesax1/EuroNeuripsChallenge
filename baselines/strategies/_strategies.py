@@ -155,58 +155,58 @@ def _knearest_time(observation: State, rng: np.random.Generator):
     
     return _filter_instance(observation, mask)
 
-def _modified_knearest_time(observation: State, rng: np.random.Generator):
-    mask = np.copy(observation['must_dispatch'])
-    new_mask = np.copy(observation['must_dispatch'])
-    mask[0] = True
-    new_mask[0] = True
-    
-        
-    
-    # Locate the k furthest neighbors
-    def get_furthest_neighbors(duration_matrix, i, num_neighbors):
-    	distances = list()
-    	for j in range(len(duration_matrix)):
-            dist = duration_matrix[i][j] + duration_matrix[j][i]
-            distances.append((j, dist))
-    	distances.sort(key=lambda tup: tup[1], reverse=True)
-    	neighbors = list()
-    	for i in range(num_neighbors):
-    		neighbors.append(distances[i][0])
-    	return neighbors
-    
-    
-    def modify_mask_of_neighbors(mask, k):
-        new_mask = np.copy(mask)
-        for i in range(len(observation['must_dispatch'])):
-            if mask[i] == True:
-                if i == 0: #If depot, get furthest neighbors instead of nearest
-                    must_dispatches = sum(mask)
-                    if must_dispatches < 10:
-                        #neighbors = get_furthest_neighbors(observation['duration_matrix'], i, k)
-                        neighbors = get_time_neighbors(observation['duration_matrix'], i, k)
-                        for neighbor in neighbors:
-                            new_mask[neighbor] = True
-                else:
-                    neighbors = get_time_neighbors(observation['duration_matrix'], i, k)
-                    for neighbor in neighbors:
-                        new_mask[neighbor] = True
-        return new_mask
-    
-    # Obtain k neighbors for each customer with 'must_dispatch'
-    k = 6
-    new_mask = modify_mask_of_neighbors(new_mask, k)
-    
-    limit_iterations = 0
-    while (sum(new_mask) < len(observation['must_dispatch'])*.95):
-        k = k+1
-        new_mask = modify_mask_of_neighbors(new_mask, k)
-        limit_iterations += 1
-        if limit_iterations >= 1:
-            break
-    
-    
-    return _filter_instance(observation, new_mask)
+# def _modified_knearest_time(observation: State, rng: np.random.Generator):
+#     mask = np.copy(observation['must_dispatch'])
+#     new_mask = np.copy(observation['must_dispatch'])
+#     mask[0] = True
+#     new_mask[0] = True
+#
+#
+#
+#     # Locate the k furthest neighbors
+#     def get_furthest_neighbors(duration_matrix, i, num_neighbors):
+#     	distances = list()
+#     	for j in range(len(duration_matrix)):
+#             dist = duration_matrix[i][j] + duration_matrix[j][i]
+#             distances.append((j, dist))
+#     	distances.sort(key=lambda tup: tup[1], reverse=True)
+#     	neighbors = list()
+#     	for i in range(num_neighbors):
+#     		neighbors.append(distances[i][0])
+#     	return neighbors
+#
+#
+#     def modify_mask_of_neighbors(mask, k):
+#         new_mask = np.copy(mask)
+#         for i in range(len(observation['must_dispatch'])):
+#             if mask[i] == True:
+#                 if i == 0: #If depot, get furthest neighbors instead of nearest
+#                     must_dispatches = sum(mask)
+#                     if must_dispatches < 10:
+#                         #neighbors = get_furthest_neighbors(observation['duration_matrix'], i, k)
+#                         neighbors = get_time_neighbors(observation['duration_matrix'], i, k)
+#                         for neighbor in neighbors:
+#                             new_mask[neighbor] = True
+#                 else:
+#                     neighbors = get_time_neighbors(observation['duration_matrix'], i, k)
+#                     for neighbor in neighbors:
+#                         new_mask[neighbor] = True
+#         return new_mask
+#
+#     # Obtain k neighbors for each customer with 'must_dispatch'
+#     k = 6
+#     new_mask = modify_mask_of_neighbors(new_mask, k)
+#
+#     limit_iterations = 0
+#     while (sum(new_mask) < len(observation['must_dispatch'])*.95):
+#         k = k+1
+#         new_mask = modify_mask_of_neighbors(new_mask, k)
+#         limit_iterations += 1
+#         if limit_iterations >= 1:
+#             break
+#
+#
+#     return _filter_instance(observation, new_mask)
 
 def _find_solitary(observation: State, rng: np.random.Generator):
     mask = np.copy(observation['must_dispatch'])
@@ -673,6 +673,69 @@ def _knearest_time_distance(observation: State, rng: np.random.Generator, factor
     return _filter_instance(observation, new_mask)
 
 
+def _modified_knearest_time(observation: State, rng: np.random.Generator, current_epoch: int):
+    mask = np.copy(observation['must_dispatch'])
+    new_mask = np.copy(observation['must_dispatch'])
+    mask[0] = True
+    new_mask[0] = True
+
+    # Parameter to change
+    c = 4  # Number of cycle iterations of k-nearest neighbors
+    alpha = 2  # +- Hours to consider nearest neighbor
+    beta = 2  # Hours to TW closing, to mark customer as Obligatory
+    k = 8  # K nearest neighbors to consider
+
+    def modify_mask_of_urgent(mask):
+        new_mask = np.copy(mask)
+        for i in range(len(observation['must_dispatch'])):
+            if observation['time_windows'][i][1] <= 3600 * beta:
+                new_mask[i] = True
+
+        return new_mask
+
+    def modify_mask_of_neighbors(mask, k):
+        new_mask = np.copy(mask)
+        for i in range(len(observation['must_dispatch'])):
+            if mask[i] == True:
+                if (i == 0) and (current_epoch == 0):  # If depot, get furthest neighbors instead of nearest
+                    continue
+                    neighbors = get_time_neighbors(observation['duration_matrix'], i, 2 * k)
+                    current_tw_start = observation['time_windows'][i][0]
+                    current_tw_end = observation['time_windows'][i][1]
+                    for neighbor in neighbors:
+                        neighbor_tw_start = observation['time_windows'][neighbor][0]
+                        neighbor_tw_end = observation['time_windows'][neighbor][1]
+                        if current_tw_end - 2 * alpha * 3600 <= neighbor_tw_start <= current_tw_end + 2 * alpha * 3600:
+                            new_mask[neighbor] = True
+                else:
+                    neighbors = get_time_neighbors(observation['duration_matrix'], i, k)
+                    current_tw_start = observation['time_windows'][i][0]
+                    current_tw_end = observation['time_windows'][i][1]
+                    for neighbor in neighbors:
+                        neighbor_tw_start = observation['time_windows'][neighbor][0]
+                        neighbor_tw_end = observation['time_windows'][neighbor][1]
+                        if current_tw_end - alpha * 3600 <= neighbor_tw_end <= current_tw_end + alpha * 3600:
+                            new_mask[neighbor] = True
+        return new_mask
+
+    if current_epoch <= 3:
+        c = 5
+    elif current_epoch <= 5:
+        c = 3
+    else:
+        c = 2
+
+    new_mask = modify_mask_of_neighbors(new_mask, k)
+
+    limit_iterations = 0
+    while (sum(new_mask) < len(observation['must_dispatch']) * .95):
+        k = k - 1
+        new_mask = modify_mask_of_neighbors(new_mask, k)
+        limit_iterations += 1
+        if limit_iterations >= c:
+            break
+
+    return _filter_instance(observation, new_mask)
 
 
 
