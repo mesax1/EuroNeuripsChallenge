@@ -433,8 +433,8 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
         routes_precompute.append(create_route_info(route))
         
     def custom_compare2(a : tuple, b : tuple):
-            xa = len(a[0])
-            xb = len(b[0])
+            xa = a[1]
+            xb = b[1]
             if(xa < xb):
                 return -1
             elif(xa > xb):
@@ -442,7 +442,7 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
             else:
                 return 0
             
-    routes_precompute = sorted(routes_precompute, key = cmp_to_key(custom_compare2)) #Aqui se sortearon por las rutas con menos clientes de menor a mayor
+    routes_precompute = sorted(routes_precompute, key = cmp_to_key(custom_compare2)) #Aqui se sortearon por lo ocupadas que estan de menor a mayor
         
     # log(f"\n Routes capacity: {observation['capacity']} ")
     # costo_todas_las_rutas = 0
