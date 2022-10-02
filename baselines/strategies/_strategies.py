@@ -347,7 +347,7 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
     
     # log(partial_routes)
     # log(observation)
-    new_mask = np.copy(observation['must_dispatch']) #REVISAR SI SI SE ESTA COPIANDO BIEN LA MASCARA
+    new_mask = np.copy(observation['must_dispatch'])
     unused_nodes = []
     for i in range(len(new_mask)):
         unused_nodes.append((i, False))
@@ -364,7 +364,7 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
             
     # log(partial_routes)
     
-    def custom_compare(a : tuple, b : tuple):
+    def custom_compare1(a : tuple, b : tuple):
         xa = observation['demands'][a[0]]
         xb = observation['demands'][b[0]]
         if(xa < xb):
@@ -373,7 +373,7 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
             return 1
         else:
             return 0
-    unused_nodes = sorted(unused_nodes, key = cmp_to_key(custom_compare)) #Aqui se sortearon por las demandas de menor a mayor
+    unused_nodes = sorted(unused_nodes, key = cmp_to_key(custom_compare1)) #Aqui se sortearon por las demandas de menor a mayor
     class Route_info:
         def __init__(self, id_client, limite_inferior, limite_superior, tiempo_viaje, tiempo_servicio, tiempo_llegada, tiempo_mas_tarde):
             self.id_client = id_client #Se refiere a la posicion de la informacion respectiva de ese cliente en el epoch
@@ -420,9 +420,6 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
             second_condition = next_client.tiempo_mas_tarde - client.tiempo_servicio - client.tiempo_viaje
             tiempo_mas_tarde = min(client.limite_superior, second_condition)
             route_precompute[idx_client].tiempo_mas_tarde = tiempo_mas_tarde
-        
-        
-        
         #log("------------------------------------------------------------")
         #for x in route_precompute:
             #log(f"id_client -> {x.id_client} limite_inferior -> {x.limite_inferior} limite_superior -> {x.limite_superior} tiempo_servicio -> {x.tiempo_servicio} tiempo_viaje -> {x.tiempo_viaje} tiempo_llegada -> {x.tiempo_llegada} tiempo_mas_tarde -> {x.tiempo_mas_tarde}")
@@ -435,19 +432,31 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
     for route in partial_routes:
         routes_precompute.append(create_route_info(route))
         
-    log(f"\n Routes capacity: {observation['capacity']} ")
-    costo_todas_las_rutas = 0
-    for route in routes_precompute:
-         #log(f" Route total demand: {route[1]}")
-         mostrar_clientes = []
-         costo_ruta = 0
-         for customer in route[0]:
-             mostrar_clientes.append(customer.id_client)
-             costo_ruta += customer.tiempo_viaje
-         #log(f"Clientes: {mostrar_clientes}")
-         log(f"Obligatory Route total demand: {route[1]}, Costo de ruta: {costo_ruta}, Clientes: {mostrar_clientes}")
-         costo_todas_las_rutas += costo_ruta
-    log(f"Number of routes: {len(routes_precompute)}, Costo de todas las rutas: {costo_todas_las_rutas}")
+    def custom_compare2(a : tuple, b : tuple):
+            xa = len(a[0])
+            xb = len(b[0])
+            if(xa < xb):
+                return -1
+            elif(xa > xb):
+                return 1
+            else:
+                return 0
+            
+    routes_precompute = sorted(routes_precompute, key = cmp_to_key(custom_compare2)) #Aqui se sortearon por las rutas con menos clientes de menor a mayor
+        
+    # log(f"\n Routes capacity: {observation['capacity']} ")
+    # costo_todas_las_rutas = 0
+    # for route in routes_precompute:
+    #      #log(f" Route total demand: {route[1]}")
+    #      mostrar_clientes = []
+    #      costo_ruta = 0
+    #      for customer in route[0]:
+    #          mostrar_clientes.append(customer.id_client)
+    #          costo_ruta += customer.tiempo_viaje
+    #      #log(f"Clientes: {mostrar_clientes}")
+    #      log(f"Obligatory Route total demand: {route[1]}, Costo de ruta: {costo_ruta}, Clientes: {mostrar_clientes}")
+    #      costo_todas_las_rutas += costo_ruta
+    # log(f"Number of routes: {len(routes_precompute)}, Costo de todas las rutas: {costo_todas_las_rutas}")
 
     class Best_ans:
         def __init__(self, dist, id_client, route_position, left_client_position):
@@ -491,42 +500,44 @@ def _f1(observation: State, rng: np.random.Generator, partial_routes : list, cli
     for node in unused_nodes:
         if node[1] == False: # Si nodo no se encuentra en la solucion actual
            continue
-        else:
-           flag = 0
-           current_node_id = node[0]
-           k = 8
-           neighbors = get_time_neighbors(observation['duration_matrix'], current_node_id, k)
-           for neighbor in neighbors:
-               node_id = neighbor
-               if new_mask[node_id] == True:
-                   continue
-               bestAns = Best_ans(1e15, -1, -1, -1)
-               for n_route, route in enumerate(routes_precompute): # iterar sobre las rutas y sobre su indice
-                   if observation['demands'][node_id]+route[1] > (0.9 * observation['capacity']): # Si supera el 90% de la capacidad del carro
-                      flag += 1 # suma una cuenta al flag para que determine si se sale del loop o no
-                   else:
-                      for i in range(1, len(route[0])):
-                          last_node = route[0][i-1]
-                          next_node = route[0][i]
-                          tiempo_llegada_1 = max(last_node.limite_inferior, last_node.tiempo_llegada) + observation['duration_matrix'][last_node.id_client][node_id] + observation['service_times'][last_node.id_client]
-                          limite_superior_1 = observation['time_windows'][node_id][1]
-                          if tiempo_llegada_1 <= limite_superior_1:
-                             limite_inferior_2 = observation['time_windows'][node_id][0]
-                             tiempo_llegada_2 = max(limite_inferior_2, tiempo_llegada_1) + observation['duration_matrix'][node_id][next_node.id_client] + observation['service_times'][node_id]
-                             if tiempo_llegada_2 <= next_node.tiempo_mas_tarde:
-                                added_distance = observation['duration_matrix'][node_id][next_node.id_client] + observation['duration_matrix'][last_node.id_client][node_id] - observation['duration_matrix'][last_node.id_client][next_node.id_client]
-                                if added_distance < bestAns.dist:
-                                   bestAns = Best_ans(added_distance, node_id, n_route, i-1)
-                          else:
-                              break
+       
+        # flag = 0
+        current_node_id = node[0]
+        k = 8
+        neighbors = get_time_neighbors(observation['duration_matrix'], current_node_id, k)
+        for neighbor in neighbors:
+            node_id = neighbor
+            if new_mask[node_id] == True:
+                continue
+            bestAns = Best_ans(1e15, -1, -1, -1)
+            for n_route, route in enumerate(routes_precompute): # iterar sobre las rutas y sobre su indice
+                if(n_route == 2):
+                    break
+                if observation['demands'][node_id]+route[1] > (0.9 * observation['capacity']): # Si supera el 90% de la capacidad del carro
+                    # flag += 1 # suma una cuenta al flag para que determine si se sale del loop o no
+                    continue
+                for i in range(1, len(route[0])):
+                    last_node = route[0][i-1]
+                    next_node = route[0][i]
+                    tiempo_llegada_1 = max(last_node.limite_inferior, last_node.tiempo_llegada) + observation['duration_matrix'][last_node.id_client][node_id] + observation['service_times'][last_node.id_client]
+                    limite_superior_1 = observation['time_windows'][node_id][1]
+                    if tiempo_llegada_1 <= limite_superior_1:
+                        limite_inferior_2 = observation['time_windows'][node_id][0]
+                        tiempo_llegada_2 = max(limite_inferior_2, tiempo_llegada_1) + observation['duration_matrix'][node_id][next_node.id_client] + observation['service_times'][node_id]
+                        if tiempo_llegada_2 <= next_node.tiempo_mas_tarde:
+                            added_distance = observation['duration_matrix'][node_id][next_node.id_client] + observation['duration_matrix'][last_node.id_client][node_id] - observation['duration_matrix'][last_node.id_client][next_node.id_client]
+                            if added_distance < bestAns.dist:
+                                bestAns = Best_ans(added_distance, node_id, n_route, i-1)
+                    else:
+                        break
 
-               if bestAns.id_client >= 0:
-                  insert_client(bestAns)
-                  new_mask[bestAns.id_client] = True
-                  break
+            if bestAns.id_client >= 0:
+                insert_client(bestAns)
+                new_mask[bestAns.id_client] = True
+                break
 
-               if flag == len(routes_precompute):
-                   break    
+            # if flag == len(routes_precompute):
+            #     break    
 
 
     
