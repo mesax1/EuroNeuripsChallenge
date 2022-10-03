@@ -97,12 +97,17 @@ def run_oracle(args, env):
     return total_reward
 
 
-def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, alpha=1):
+def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, c=1, alpha=1, beta=1, k=1, omega=1 ):
 
     strategy = strategy or args.strategy
     strategy = STRATEGIES[strategy] if isinstance(strategy, str) else strategy
     seed = seed or args.solver_seed
+    c_parameter = c
     alpha_parameter = alpha
+    beta_parameter = beta
+    k_parameter = k
+    omega_parameter = omega
+
     rng = np.random.default_rng(seed)
 
     total_reward = 0
@@ -152,7 +157,8 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, alph
                 solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=epoch_tlim, tmp_dir=args.tmp_dir, seed=args.solver_seed))
                 """
 
-                epoch_instance_dispatch = STRATEGIES['modifiedknearest'](epoch_instance, rng, observation['current_epoch'])
+                epoch_instance_dispatch = STRATEGIES['modifiedknearest'](epoch_instance, rng, observation['current_epoch'],
+                                                                         c_parameter, alpha_parameter, beta_parameter, k_parameter)
                 #epoch_instance_dispatch = STRATEGIES['knearestimedistance'](epoch_instance, rng, alpha_parameter)
                 #epoch_instance_dispatch = STRATEGIES['modifiedknearest'](epoch_instance, rng)
                 initial_time_limit = epoch_tlim//3
@@ -163,8 +169,8 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, alph
                 # log(epoch_instance)
                 # [log(f" Route {route} Demands {sum(epoch_instance['demands'][route])}") for route in unchanged_epoch_solution]
                 partial_epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in partial_epoch_solution]
-                epoch_instance_dispatch = STRATEGIES['f1'](epoch_instance, rng, partial_epoch_solution, client_id)
-                #epoch_instance_dispatch = STRATEGIES['f2'](epoch_instance, rng, partial_epoch_solution, client_id, alpha_parameter)
+                #epoch_instance_dispatch = STRATEGIES['f1'](epoch_instance, rng, partial_epoch_solution, client_id)
+                epoch_instance_dispatch = STRATEGIES['f2'](epoch_instance, rng, partial_epoch_solution, client_id, omega_parameter)
                 solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=final_time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))            #------------------
 
                 #solutions = list(
@@ -289,11 +295,23 @@ if __name__ == "__main__":
                 elif args.strategy[:19] == "knearestimedistance":
                     strategy = STRATEGIES[args.strategy[:19]]
                     alpha = args.strategy[19:]
+                elif args.strategy[:16] == "modifiedknearest":
+                    string = args.strategy.split(",")
+                    strategy = STRATEGIES[string[0]]
+                    c = string[1]
+                    alpha = string[2]
+                    beta = string[3]
+                    k = string[4]
+                    omega = string[5]
                 else:
                     strategy = STRATEGIES[args.strategy]
-                    alpha= 1
+                    c = 1
+                    alpha = 1
+                    beta = 1
+                    k = 1
+                    omega = 1
 
-            run_baseline(args, env, strategy=strategy, alpha=float(alpha))
+            run_baseline(args, env, strategy=strategy, c=int(c), alpha=float(alpha), beta=float(beta), k=int(k), omega=float(omega))
 
         if args.instance is not None:
             log(tools.json_dumps_np(env.final_solutions))

@@ -574,13 +574,14 @@ def _all_must_dispatch(observation: State, rng: np.random.Generator):  # Si no h
         new_mask[i] = True
     return _filter_instance(observation, new_mask)
 
-def _f2(observation: State, rng: np.random.Generator, partial_routes: list, client_ids: dict, alpha: float):
+def _f2(observation: State, rng: np.random.Generator, partial_routes: list, client_ids: dict, omega: float):
     # log(partial_routes)
     # log(observation)
+    log(f"omega: {omega}")
     new_mask = np.copy(observation['must_dispatch'])  # REVISAR SI SI SE ESTA COPIANDO BIEN LA MASCARA
     new_mask[0] = True
     average_costs = []
-    alpha = alpha
+    omega = omega
     for i in range(len(partial_routes)):
         log(partial_routes[i])
         partial_routes[i] = np.insert(partial_routes[i], 0, 0)
@@ -600,7 +601,7 @@ def _f2(observation: State, rng: np.random.Generator, partial_routes: list, clie
                 next_node = client_ids[partial_routes[i][j+1]]
                 next_node_cost = observation['duration_matrix'][client_ids[partial_routes[i][j]]][next_node]
                 saved_cost = last_node_cost + next_node_cost - observation['duration_matrix'][last_node][next_node]
-                if saved_cost < (average_costs[i]*alpha):
+                if saved_cost < (average_costs[i]*omega):
                     new_mask[client_ids[partial_routes[i][j]]] = True
                 #else:
 
@@ -673,17 +674,19 @@ def _knearest_time_distance(observation: State, rng: np.random.Generator, factor
     return _filter_instance(observation, new_mask)
 
 
-def _modified_knearest_time(observation: State, rng: np.random.Generator, current_epoch: int):
+def _modified_knearest_time(observation: State, rng: np.random.Generator, current_epoch: int, c: int, alpha: float
+                            , beta: float, k: int):
     mask = np.copy(observation['must_dispatch'])
     new_mask = np.copy(observation['must_dispatch'])
     mask[0] = True
     new_mask[0] = True
 
     # Parameter to change
-    c = 4  # Number of cycle iterations of k-nearest neighbors
-    alpha = 2  # +- Hours to consider nearest neighbor
-    beta = 2  # Hours to TW closing, to mark customer as Obligatory
-    k = 8  # K nearest neighbors to consider
+    c = c  # Number of cycle iterations of k-nearest neighbors
+    alpha = alpha  # +- Hours to consider nearest neighbor
+    beta = beta  # Hours to TW closing, to mark customer as Obligatory
+    k = k  # K nearest neighbors to consider
+    log(f"c: {c}, alpha: {alpha}, beta: {beta}, k: {k}")
 
     def modify_mask_of_urgent(mask):
         new_mask = np.copy(mask)
@@ -697,7 +700,8 @@ def _modified_knearest_time(observation: State, rng: np.random.Generator, curren
         new_mask = np.copy(mask)
         for i in range(len(observation['must_dispatch'])):
             if mask[i] == True:
-                if (i == 0) and (current_epoch == 0):  # If depot, get furthest neighbors instead of nearest
+                # if (i == 0) and (observation['current_epoch'] == 0): #If depot, get furthest neighbors instead of nearest
+                if (i == 0):
                     continue
                     neighbors = get_time_neighbors(observation['duration_matrix'], i, 2 * k)
                     current_tw_start = observation['time_windows'][i][0]
@@ -705,7 +709,7 @@ def _modified_knearest_time(observation: State, rng: np.random.Generator, curren
                     for neighbor in neighbors:
                         neighbor_tw_start = observation['time_windows'][neighbor][0]
                         neighbor_tw_end = observation['time_windows'][neighbor][1]
-                        if current_tw_end - 2 * alpha * 3600 <= neighbor_tw_start <= current_tw_end + 2 * alpha * 3600:
+                        if current_tw_end - alpha * 3600 <= neighbor_tw_start <= current_tw_end + alpha * 3600:
                             new_mask[neighbor] = True
                 else:
                     neighbors = get_time_neighbors(observation['duration_matrix'], i, k)
@@ -718,13 +722,20 @@ def _modified_knearest_time(observation: State, rng: np.random.Generator, curren
                             new_mask[neighbor] = True
         return new_mask
 
+    if len(observation['must_dispatch']) >= 150:
+        c = 5
+    elif len(observation['must_dispatch']) >= 100:
+        c = 4
+    else:
+        c = 3
+    """
     if current_epoch <= 3:
         c = 5
     elif current_epoch <= 5:
         c = 3
     else:
         c = 2
-
+    """
     new_mask = modify_mask_of_neighbors(new_mask, k)
 
     limit_iterations = 0

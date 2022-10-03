@@ -89,9 +89,9 @@ if __name__ == "__main__":
     print("Solution:")
     print(tools.json_dumps_np(env.final_solutions))
 
-    f = open("aux.txt", "a")
-    f.write(f"{sum(env.final_costs.values())}\n")
-    f.close()
+    #f = open("aux.txt", "a")
+    #f.write(f"{sum(env.final_costs.values())}\n")
+    #f.close()
 
     csv = open("instance_info.txt", "a")
     if solver_cmd[-1][:2] == "f2":
@@ -100,8 +100,21 @@ if __name__ == "__main__":
     elif solver_cmd[-1][:19] == "knearestimedistance":
         strategy = "knearestimedistance"
         alpha = solver_cmd[-1][19:]
+    elif solver_cmd[-1][:16] == "modifiedknearest":
+        string = solver_cmd[-1].split(",")
+        strategy = string[0]
+        c = string[1]
+        alpha = string[2]
+        beta = string[3]
+        k = string[4]
+        omega = string[5]
     else:
         strategy = solver_cmd[-1]
+        c = "NaN"
         alpha = "NaN"
-    csv.write(f"\n{entries[int(args.instance)]};{args.instance};{sum(env.final_costs.values())};{strategy};{alpha}")
+        beta = "NaN"
+        k = "NaN"
+        omega = "NaN"
+    csv.write(f"\n{entries[int(args.instance)]};{args.instance};{sum(env.final_costs.values())};{strategy};c={c};"
+              f"aplha={alpha};beta={beta};k={k};omega={omega}")
     csv.close()
