@@ -729,7 +729,7 @@ def _modified_knearest_time(observation: State, rng: np.random.Generator, curren
                     for neighbor in neighbors:
                         neighbor_tw_start = observation['time_windows'][neighbor][0]
                         neighbor_tw_end = observation['time_windows'][neighbor][1]
-                        if current_tw_end - alpha * 3600 <= neighbor_tw_end <= current_tw_end + alpha * 3600:
+                        if neighbor_tw_end <= current_tw_end + alpha*3600:
                             new_mask[neighbor] = True
         return new_mask
 
@@ -760,6 +760,30 @@ def _modified_knearest_time(observation: State, rng: np.random.Generator, curren
     return _filter_instance(observation, new_mask)
 
 
+def _remove_clients(observation: State, rng: np.random.Generator, partial_routes: list, client_ids: dict, omega: float):
+    # log(partial_routes)
+    # log(observation)
+    log(f"omega: {omega}")
+    new_mask = np.copy(observation['must_dispatch'])  # REVISAR SI SI SE ESTA COPIANDO BIEN LA MASCARA
+    new_mask[0] = True
+
+    for i in range(len(partial_routes)):
+        log(partial_routes[i])
+        demand = 0
+        must_dispatch = 0
+        for j in range(len(partial_routes[i])):
+            client = client_ids[partial_routes[i][j]]
+            demand += observation['demands'][client]
+            must_dispatch += 1 if new_mask[client] else 0
+            new_mask[client] = True
+        capacity = (demand/observation['capacity'])*100
+        if must_dispatch == 0 and capacity <= omega:
+            log(f"Capacidad: {capacity}, y tiene must_dispatch {must_dispatch}")
+            for j in range(len(partial_routes[i])):
+                client = client_ids[partial_routes[i][j]]
+                new_mask[client] = False
+
+    return _filter_instance(observation, new_mask)
 
 
 STRATEGIES = dict(
@@ -780,5 +804,6 @@ STRATEGIES = dict(
     f1 = _f1,
     allmustdispatch = _all_must_dispatch,
     f2 = _f2,
-    knearestimedistance = _knearest_time_distance
+    knearestimedistance = _knearest_time_distance,
+    removeclients = _remove_clients,
 )
