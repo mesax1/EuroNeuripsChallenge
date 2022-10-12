@@ -747,7 +747,10 @@ def _modified_knearest_time(observation: State, rng: np.random.Generator, curren
     else:
         c = 2
     """
+    new_mask = modify_mask_of_urgent(new_mask)
+    log(f"suma de los must dispatch = {sum(new_mask)}")
     new_mask = modify_mask_of_neighbors(new_mask, k)
+    log(f"suma de los must dispatch = {sum(new_mask)}")
 
     limit_iterations = 0
     while (sum(new_mask) < len(observation['must_dispatch']) * .95):
@@ -760,10 +763,10 @@ def _modified_knearest_time(observation: State, rng: np.random.Generator, curren
     return _filter_instance(observation, new_mask)
 
 
-def _remove_clients(observation: State, rng: np.random.Generator, partial_routes: list, client_ids: dict, omega: float):
+def _remove_clients(observation: State, rng: np.random.Generator, partial_routes: list, client_ids: dict, porcentaje: float):
     # log(partial_routes)
     # log(observation)
-    log(f"omega: {omega}")
+    log(f"omega: {porcentaje}")
     new_mask = np.copy(observation['must_dispatch'])  # REVISAR SI SI SE ESTA COPIANDO BIEN LA MASCARA
     new_mask[0] = True
 
@@ -777,7 +780,7 @@ def _remove_clients(observation: State, rng: np.random.Generator, partial_routes
             must_dispatch += 1 if new_mask[client] else 0
             new_mask[client] = True
         capacity = (demand/observation['capacity'])*100
-        if must_dispatch == 0 and capacity <= omega:
+        if must_dispatch == 0 and capacity <= porcentaje:
             log(f"Capacidad: {capacity}, y tiene must_dispatch {must_dispatch}")
             for j in range(len(partial_routes[i])):
                 client = client_ids[partial_routes[i][j]]
@@ -785,6 +788,33 @@ def _remove_clients(observation: State, rng: np.random.Generator, partial_routes
 
     return _filter_instance(observation, new_mask)
 
+def _must_dispatch(observation: State, rng: np.random.Generator):  # Si no hay must_dispatch obligatorios obtengo los 10 nearest
+    # log(observation['must_dispatch'])
+    new_mask = np.copy(observation['must_dispatch'])
+    new_mask[0] = True
+
+    clients_ordered = []
+    for i in range(len(new_mask)):
+        if not new_mask[i]:
+            clients_ordered.append((i, observation['time_windows'][i][0]))
+    clients_ordered.sort(key=lambda x: x[1], reverse=True)
+    log(f"clients_ordered {clients_ordered}")
+    not_routed_clients = []
+    for client in clients_ordered:
+        not_routed_clients.append(client[0])
+    log(f"clients_ordered {not_routed_clients}")
+    return _filter_instance(observation, new_mask), not_routed_clients
+
+def _remove_ordered_clients(observation: State, rng: np.random.Generator, iteration, not_routed_clients, number_of_clients):
+    new_mask = np.copy(observation['must_dispatch'])
+    log("----------------------------------------------")
+    log(f"not_routed_clients[:int(iteration*number_of_clients)]{not_routed_clients[:int(iteration * number_of_clients)]}")
+    clients = not_routed_clients[:int(iteration*number_of_clients)]
+    for i in range(len(new_mask)):
+        if i not in clients:
+            new_mask[i] = True
+
+    return _filter_instance(observation, new_mask)
 
 STRATEGIES = dict(
     greedy=_greedy,
@@ -806,4 +836,6 @@ STRATEGIES = dict(
     f2 = _f2,
     knearestimedistance = _knearest_time_distance,
     removeclients = _remove_clients,
+    mustdispatch = _must_dispatch,
+    removeorderedclients = _remove_ordered_clients
 )

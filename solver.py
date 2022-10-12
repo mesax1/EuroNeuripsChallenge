@@ -1,5 +1,5 @@
 # Solver for Dynamic VRPTW, baseline strategy is to use the static solver HGS-VRPTW repeatedly
-import graficar
+#import graficar
 import argparse
 import subprocess
 import sys
@@ -8,6 +8,7 @@ import uuid
 import platform
 import numpy as np
 import functools
+import math
 
 import tools
 from environment import VRPEnvironment, ControllerEnvironment
@@ -97,16 +98,18 @@ def run_oracle(args, env):
     return total_reward
 
 
-def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, c=1, alpha=1, beta=1, k=1, omega=1 ):
+#def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, c=1, alpha=1, beta=1, k=1, omega=1 ):
+def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, gamma = 1):
 
     strategy = strategy or args.strategy
     strategy = STRATEGIES[strategy] if isinstance(strategy, str) else strategy
     seed = seed or args.solver_seed
-    c_parameter = c
-    alpha_parameter = alpha
-    beta_parameter = beta
-    k_parameter = k
-    omega_parameter = omega
+    # c_parameter = c
+    # alpha_parameter = alpha
+    # beta_parameter = beta
+    # k_parameter = k
+    # omega_parameter = omega
+    gamma = gamma
 
     rng = np.random.default_rng(seed)
 
@@ -157,21 +160,47 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, c=1,
                 solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=epoch_tlim, tmp_dir=args.tmp_dir, seed=args.solver_seed))
                 """
 
-                epoch_instance_dispatch = STRATEGIES['modifiedknearest'](epoch_instance, rng, observation['current_epoch'],
-                                                                         c_parameter, alpha_parameter, beta_parameter, k_parameter)
+                # epoch_instance_dispatch = STRATEGIES['modifiedknearest'](epoch_instance, rng, observation['current_epoch'],
+                #                                                          c_parameter, alpha_parameter, beta_parameter, k_parameter)
                 #epoch_instance_dispatch = STRATEGIES['knearestimedistance'](epoch_instance, rng, alpha_parameter)
                 #epoch_instance_dispatch = STRATEGIES['modifiedknearest'](epoch_instance, rng)
-                initial_time_limit = epoch_tlim//3
-                final_time_limit = epoch_tlim - initial_time_limit
+                epoch_instance_dispatch, not_routed_clients = STRATEGIES['mustdispatch'](epoch_instance, rng)
+                #initial_time_limit = epoch_tlim//3
+                #final_time_limit = epoch_tlim - initial_time_limit
+                initial_time_limit = 30
                 solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=initial_time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))
-                partial_epoch_solution, partial_cost = solutions[-1]
-                unchanged_epoch_solution = list(partial_epoch_solution)
-                # log(epoch_instance)
-                # [log(f" Route {route} Demands {sum(epoch_instance['demands'][route])}") for route in unchanged_epoch_solution]
-                partial_epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in partial_epoch_solution]
-                #epoch_instance_dispatch = STRATEGIES['f1'](epoch_instance, rng, partial_epoch_solution, client_id)
-                epoch_instance_dispatch = STRATEGIES['removeclients'](epoch_instance, rng, partial_epoch_solution, client_id, omega_parameter)
-                solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=final_time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))            #------------------
+                #partial_epoch_solution, partial_cost = solutions[-1]
+                partial_epoch_solution, best_cost = solutions[-1]
+                tolerance = 0.8
+
+
+                #log(f"not_routed_clients {not_routed_clients}")
+                runs_time_limit = math.ceil((epoch_tlim - initial_time_limit)*tolerance)
+                number_of_clients = math.ceil(len(not_routed_clients)/runs_time_limit)
+                # log(f"run time limit {runs_time_limit}, number of clients {number_of_clients}, calc = {len(not_routed_clients)}")
+                # log(f"observation['current_epoch']={observation['current_epoch']}, gamma= {gamma}")
+                # log(f"clients to eliminate = {number_of_clients}")
+                # log(f"not routed clients = {not_routed_clients}")
+                # log(f"best cost = {best_cost}")
+
+                #partial_epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in partial_epoch_solution]
+
+                for iteration in range(runs_time_limit):
+                    epoch_instance_dispatch = STRATEGIES['removeorderedclients'](epoch_instance, rng, iteration, not_routed_clients,
+                                                               number_of_clients)
+
+                    fast_solution = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=1, tmp_dir=args.tmp_dir,
+                                                        seed=args.solver_seed))
+
+                    partial_epoch_solution, partial_cost = fast_solution[-1]
+                    if partial_cost < best_cost*gamma:
+                        log("----------------------------")
+                        log(f"encontre una mejor solución en {partial_cost} en comparación con {best_cost} * gamma {best_cost*gamma}")
+                        solutions = fast_solution
+                        break
+
+                #epoch_instance_dispatch = STRATEGIES['f2'](epoch_instance, rng, partial_epoch_solution, client_id, omega_parameter)
+                #solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=1, tmp_dir=args.tmp_dir, seed=args.solver_seed))            #------------------
 
                 #solutions = list(
                     #solve_static_vrptw(epoch_instance_dispatch, time_limit=epoch_tlim, tmp_dir=args.tmp_dir,
@@ -303,15 +332,23 @@ if __name__ == "__main__":
                     beta = string[3]
                     k = string[4]
                     omega = string[5]
+
+                elif args.strategy[:20] == "removeorderedclients":
+                    string = args.strategy.split(",")
+                    strategy = STRATEGIES[string[0]]
+                    gamma = string[1]
+
                 else:
                     strategy = STRATEGIES[args.strategy]
-                    c = 1
-                    alpha = 1
-                    beta = 1
-                    k = 1
-                    omega = 1
+                    gamma = 1
+                    # c = 1
+                    # alpha = 1
+                    # beta = 1
+                    # k = 1
+                    # omega = 1
 
-            run_baseline(args, env, strategy=strategy, c=int(c), alpha=float(alpha), beta=float(beta), k=int(k), omega=float(omega))
+            #run_baseline(args, env, strategy=strategy, c=int(c), alpha=float(alpha), beta=float(beta), k=int(k), omega=float(omega))
+            run_baseline(args, env, strategy=strategy, gamma=float(gamma))
 
         if args.instance is not None:
             log(tools.json_dumps_np(env.final_solutions))

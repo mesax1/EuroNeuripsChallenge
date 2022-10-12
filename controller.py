@@ -108,13 +108,20 @@ if __name__ == "__main__":
         beta = string[3]
         k = string[4]
         omega = string[5]
+    elif solver_cmd[-1][:20] == "removeorderedclients":
+        string = solver_cmd[-1].split(",")
+        strategy = string[0]
+        gamma = string[1]
+
     else:
         strategy = solver_cmd[-1]
-        c = "NaN"
-        alpha = "NaN"
-        beta = "NaN"
-        k = "NaN"
-        omega = "NaN"
-    csv.write(f"\n{entries[int(args.instance)]};{args.instance};{sum(env.final_costs.values())};{strategy};c={c};"
-              f"aplha={alpha};beta={beta};k={k};omega={omega}")
+        # c = "NaN"
+        # alpha = "NaN"
+        # beta = "NaN"
+        # k = "NaN"
+        # omega = "NaN"
+        gamma = "NaN"
+    # csv.write(f"\n{entries[int(args.instance)]};{args.instance};{sum(env.final_costs.values())};{strategy};c={c};"
+    #           f"aplha={alpha};beta={beta};k={k};omega={omega}")
+    csv.write(f"\n{entries[int(args.instance)]};{args.instance};{sum(env.final_costs.values())};{strategy};gamma={gamma}")
     csv.close()
