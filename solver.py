@@ -175,9 +175,9 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, gamm
 
 
                 #log(f"not_routed_clients {not_routed_clients}")
-                runs_time_limit = math.ceil((epoch_tlim - initial_time_limit)*tolerance)
-                number_of_clients = math.ceil(len(not_routed_clients)/runs_time_limit)
-                # log(f"run time limit {runs_time_limit}, number of clients {number_of_clients}, calc = {len(not_routed_clients)}")
+                runs_time_limit = int((epoch_tlim - initial_time_limit)*tolerance)
+                number_of_clients = math.ceil(len(not_routed_clients)/(runs_time_limit-1))
+                log(f"run time limit {runs_time_limit}, number of clients {number_of_clients}, calc = {len(not_routed_clients)}")
                 # log(f"observation['current_epoch']={observation['current_epoch']}, gamma= {gamma}")
                 # log(f"clients to eliminate = {number_of_clients}")
                 # log(f"not routed clients = {not_routed_clients}")

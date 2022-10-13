@@ -808,8 +808,13 @@ def _must_dispatch(observation: State, rng: np.random.Generator):  # Si no hay m
 def _remove_ordered_clients(observation: State, rng: np.random.Generator, iteration, not_routed_clients, number_of_clients):
     new_mask = np.copy(observation['must_dispatch'])
     log("----------------------------------------------")
-    log(f"not_routed_clients[:int(iteration*number_of_clients)]{not_routed_clients[:int(iteration * number_of_clients)]}")
-    clients = not_routed_clients[:int(iteration*number_of_clients)]
+
+    if iteration*number_of_clients > len(not_routed_clients):
+        clients = not_routed_clients
+        log(f"not_routed_clients {clients}")
+    else:
+        clients = not_routed_clients[:int(iteration*number_of_clients)]
+        log(f"not_routed_clients {clients}")
     for i in range(len(new_mask)):
         if i not in clients:
             new_mask[i] = True
