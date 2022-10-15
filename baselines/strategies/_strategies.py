@@ -27,12 +27,12 @@ def _filter_instance(observation: State, mask: np.ndarray):
     return res
 
 # Locate the k nearest neighbors
-def get_time_neighbors(duration_matrix, i, num_neighbors):
+def get_time_neighbors(duration_matrix, i, num_neighbors, get_furthest=False):
     distances = list()
     for j in range(len(duration_matrix)):
         dist = duration_matrix[i][j] + duration_matrix[j][i]
         distances.append((j, dist))
-    distances.sort(key=lambda tup: tup[1])
+    distances.sort(key=lambda tup: tup[1], reverse=get_furthest)
     neighbors = list()
     max_neighbors = min(num_neighbors, len(duration_matrix))
     for i in range(max_neighbors):
@@ -685,19 +685,17 @@ def _knearest_time_distance(observation: State, rng: np.random.Generator, factor
     return _filter_instance(observation, new_mask)
 
 
-def _modified_knearest_time(observation: State, rng: np.random.Generator, current_epoch: int, c: int, alpha: float
-                            , beta: float, k: int):
+def _modified_knearest_time(observation: State, rng: np.random.Generator, first_epoch: int, current_epoch: int):
     mask = np.copy(observation['must_dispatch'])
     new_mask = np.copy(observation['must_dispatch'])
     mask[0] = True
     new_mask[0] = True
 
     # Parameter to change
-    c = c  # Number of cycle iterations of k-nearest neighbors
-    alpha = alpha  # +- Hours to consider nearest neighbor
-    beta = beta  # Hours to TW closing, to mark customer as Obligatory
-    k = k  # K nearest neighbors to consider
-    log(f"c: {c}, alpha: {alpha}, beta: {beta}, k: {k}")
+    c = 4  # Number of cycle iterations of k-nearest neighbors
+    alpha = 2.0  # +- Hours to consider nearest neighbor
+    beta = 2  # Hours to TW closing, to mark customer as Obligatory
+    k = 8  # K nearest neighbors to consider
 
     def modify_mask_of_urgent(mask):
         new_mask = np.copy(mask)
@@ -707,29 +705,20 @@ def _modified_knearest_time(observation: State, rng: np.random.Generator, curren
 
         return new_mask
 
-    def modify_mask_of_neighbors(mask, k):
+    def modify_mask_of_neighbors(mask, k, alpha, get_furthest=False):
         new_mask = np.copy(mask)
         for i in range(len(observation['must_dispatch'])):
             if mask[i] == True:
-                # if (i == 0) and (observation['current_epoch'] == 0): #If depot, get furthest neighbors instead of nearest
                 if (i == 0):
                     continue
-                    neighbors = get_time_neighbors(observation['duration_matrix'], i, 2 * k)
-                    current_tw_start = observation['time_windows'][i][0]
-                    current_tw_end = observation['time_windows'][i][1]
-                    for neighbor in neighbors:
-                        neighbor_tw_start = observation['time_windows'][neighbor][0]
-                        neighbor_tw_end = observation['time_windows'][neighbor][1]
-                        if current_tw_end - alpha * 3600 <= neighbor_tw_start <= current_tw_end + alpha * 3600:
-                            new_mask[neighbor] = True
                 else:
-                    neighbors = get_time_neighbors(observation['duration_matrix'], i, k)
+                    neighbors = get_time_neighbors(observation['duration_matrix'], i, k, get_furthest)
                     current_tw_start = observation['time_windows'][i][0]
                     current_tw_end = observation['time_windows'][i][1]
                     for neighbor in neighbors:
                         neighbor_tw_start = observation['time_windows'][neighbor][0]
                         neighbor_tw_end = observation['time_windows'][neighbor][1]
-                        if neighbor_tw_end <= current_tw_end + alpha*3600:
+                        if neighbor_tw_end <= current_tw_end + alpha * 3600:
                             new_mask[neighbor] = True
         return new_mask
 
@@ -739,23 +728,17 @@ def _modified_knearest_time(observation: State, rng: np.random.Generator, curren
         c = 4
     else:
         c = 3
-    """
-    if current_epoch <= 3:
-        c = 5
-    elif current_epoch <= 5:
-        c = 3
-    else:
+
+    if current_epoch == first_epoch:
+        k = 5
         c = 2
-    """
-    new_mask = modify_mask_of_urgent(new_mask)
-    log(f"suma de los must dispatch = {sum(new_mask)}")
-    new_mask = modify_mask_of_neighbors(new_mask, k)
-    log(f"suma de los must dispatch = {sum(new_mask)}")
+
+    new_mask = modify_mask_of_neighbors(new_mask, k, alpha, get_furthest=False)
 
     limit_iterations = 0
-    while (sum(new_mask) < len(observation['must_dispatch']) * .95):
+    while (sum(new_mask) < len(observation['must_dispatch'])):
         k = k - 1
-        new_mask = modify_mask_of_neighbors(new_mask, k)
+        new_mask = modify_mask_of_neighbors(new_mask, k, alpha)
         limit_iterations += 1
         if limit_iterations >= c:
             break
@@ -821,6 +804,98 @@ def _remove_ordered_clients(observation: State, rng: np.random.Generator, iterat
 
     return _filter_instance(observation, new_mask)
 
+def _must_dispatch_modifiedknearest(observation: State, rng: np.random.Generator, first_epoch: int, current_epoch: int):
+    # log(observation['must_dispatch'])
+    must_dispatch = np.copy(observation['must_dispatch'])
+    must_dispatch[0] = True
+
+    #mask = np.copy(observation['must_dispatch'])
+    new_mask = np.copy(observation['must_dispatch'])
+    #mask[0] = True
+    new_mask[0] = True
+
+    # Parameter to change
+    c = 4  # Number of cycle iterations of k-nearest neighbors
+    alpha = 2.0  # +- Hours to consider nearest neighbor
+    beta = 2  # Hours to TW closing, to mark customer as Obligatory
+    k = 8  # K nearest neighbors to consider
+
+    def modify_mask_of_urgent(mask):
+        new_mask = np.copy(mask)
+        for i in range(len(observation['must_dispatch'])):
+            if observation['time_windows'][i][1] <= 3600 * beta:
+                new_mask[i] = True
+
+        return new_mask
+
+    def modify_mask_of_neighbors(mask, k, alpha, get_furthest=False):
+        new_mask = np.copy(mask)
+        for i in range(len(observation['must_dispatch'])):
+            if mask[i] == True:
+                if (i == 0):
+                    continue
+                else:
+                    neighbors = get_time_neighbors(observation['duration_matrix'], i, k, get_furthest)
+                    current_tw_start = observation['time_windows'][i][0]
+                    current_tw_end = observation['time_windows'][i][1]
+                    for neighbor in neighbors:
+                        neighbor_tw_start = observation['time_windows'][neighbor][0]
+                        neighbor_tw_end = observation['time_windows'][neighbor][1]
+                        if neighbor_tw_end <= current_tw_end + alpha * 3600:
+                            new_mask[neighbor] = True
+        return new_mask
+
+    if len(observation['must_dispatch']) >= 150:
+        c = 5
+    elif len(observation['must_dispatch']) >= 100:
+        c = 4
+    else:
+        c = 3
+
+    if current_epoch == first_epoch:
+        k = 5
+        c = 2
+
+    new_mask = modify_mask_of_neighbors(new_mask, k, alpha, get_furthest=False)
+
+    limit_iterations = 0
+    while (sum(new_mask) < len(observation['must_dispatch'])):
+        k = k - 1
+        new_mask = modify_mask_of_neighbors(new_mask, k, alpha)
+        limit_iterations += 1
+        if limit_iterations >= c:
+            break
+
+    clients_ordered = []
+    log(f"sum = {sum(new_mask)}")
+    for i in range(len(new_mask)):
+        if new_mask[i] and not must_dispatch[i]:
+            clients_ordered.append((i, observation['time_windows'][i][0]))
+    clients_ordered.sort(key=lambda x: x[1], reverse=True)
+    #log(f"clients_ordered {clients_ordered}")
+    clients_to_route = []
+    for client in clients_ordered:
+        clients_to_route.append(client[0])
+    log(f"clients_ordered {clients_to_route}, len = {len(clients_to_route)}")
+    return _filter_instance(observation, must_dispatch), clients_to_route
+
+def _remove_ordered_clients_modifiedknearest(observation: State, rng: np.random.Generator, iteration, clients_to_route, number_of_clients):
+    new_mask = np.copy(observation['must_dispatch'])
+    new_mask[0] = True
+    log("----------------------------------------------")
+
+    if iteration*number_of_clients > len(clients_to_route):
+        not_routed_clients = clients_to_route
+        log(f"not_routed_clients {not_routed_clients}")
+    else:
+        not_routed_clients = clients_to_route[:int(iteration*number_of_clients)]
+        log(f"not_routed_clients {not_routed_clients}")
+    for i in range(len(new_mask)):
+        if (i in clients_to_route) and (i not in not_routed_clients):
+            new_mask[i] = True
+
+    return _filter_instance(observation, new_mask)
+
 STRATEGIES = dict(
     greedy=_greedy,
     lazy=_lazy,
@@ -842,5 +917,7 @@ STRATEGIES = dict(
     knearestimedistance = _knearest_time_distance,
     removeclients = _remove_clients,
     mustdispatch = _must_dispatch,
-    removeorderedclients = _remove_ordered_clients
+    removeorderedclients = _remove_ordered_clients,
+    mustdispatchmodifiedknearest= _must_dispatch_modifiedknearest,
+    removeorderedclientsmodifiedknearest = _remove_ordered_clients_modifiedknearest
 )

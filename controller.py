@@ -93,7 +93,7 @@ if __name__ == "__main__":
     #f.write(f"{sum(env.final_costs.values())}\n")
     #f.close()
 
-    csv = open("instance_info.txt", "a")
+
     if solver_cmd[-1][:2] == "f2":
         strategy = "f2"
         alpha = solver_cmd[-1][2:]
@@ -123,5 +123,6 @@ if __name__ == "__main__":
         gamma = "NaN"
     # csv.write(f"\n{entries[int(args.instance)]};{args.instance};{sum(env.final_costs.values())};{strategy};c={c};"
     #           f"aplha={alpha};beta={beta};k={k};omega={omega}")
+    csv = open("instance_info.txt", "a")
     csv.write(f"\n{entries[int(args.instance)]};{args.instance};{sum(env.final_costs.values())};{strategy};gamma={gamma}")
     csv.close()

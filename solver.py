@@ -164,7 +164,7 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, gamm
                 #                                                          c_parameter, alpha_parameter, beta_parameter, k_parameter)
                 #epoch_instance_dispatch = STRATEGIES['knearestimedistance'](epoch_instance, rng, alpha_parameter)
                 #epoch_instance_dispatch = STRATEGIES['modifiedknearest'](epoch_instance, rng)
-                epoch_instance_dispatch, not_routed_clients = STRATEGIES['mustdispatch'](epoch_instance, rng)
+                epoch_instance_dispatch, clients_to_route = STRATEGIES['mustdispatchmodifiedknearest'](epoch_instance, rng, static_info['start_epoch'], observation['current_epoch'])
                 #initial_time_limit = epoch_tlim//3
                 #final_time_limit = epoch_tlim - initial_time_limit
                 initial_time_limit = 30
@@ -176,8 +176,8 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, gamm
 
                 #log(f"not_routed_clients {not_routed_clients}")
                 runs_time_limit = int((epoch_tlim - initial_time_limit)*tolerance)
-                number_of_clients = math.ceil(len(not_routed_clients)/(runs_time_limit-1))
-                log(f"run time limit {runs_time_limit}, number of clients {number_of_clients}, calc = {len(not_routed_clients)}")
+                number_of_clients = math.ceil(len(clients_to_route)/(runs_time_limit-1))
+                log(f"run time limit {runs_time_limit}, number of clients {number_of_clients}, calc = {len(clients_to_route)}")
                 # log(f"observation['current_epoch']={observation['current_epoch']}, gamma= {gamma}")
                 # log(f"clients to eliminate = {number_of_clients}")
                 # log(f"not routed clients = {not_routed_clients}")
@@ -186,7 +186,7 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, gamm
                 #partial_epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in partial_epoch_solution]
 
                 for iteration in range(runs_time_limit):
-                    epoch_instance_dispatch = STRATEGIES['removeorderedclients'](epoch_instance, rng, iteration, not_routed_clients,
+                    epoch_instance_dispatch = STRATEGIES['removeorderedclientsmodifiedknearest'](epoch_instance, rng, iteration, clients_to_route,
                                                                number_of_clients)
 
                     fast_solution = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=1, tmp_dir=args.tmp_dir,
