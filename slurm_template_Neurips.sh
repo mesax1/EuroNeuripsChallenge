@@ -6,7 +6,7 @@
 #SBATCH -o test_%N_%j.out
 #SBATCH -e test_%N_%j.err
 #SBATCH --mail-type=ALL
-#SBATCH --mail-user=jmesalo@eafit.edu.co
+#SBATCH --mail-user=auribev1@eafit.edu.co
 #SBATCH --array=0-249
 #SBATCH --nodes=1
 ##SBATCH --exclusive=user

@@ -876,24 +876,47 @@ def _must_dispatch_modifiedknearest(observation: State, rng: np.random.Generator
     clients_to_route = []
     for client in clients_ordered:
         clients_to_route.append(client[0])
-    log(f"clients_ordered {clients_to_route}, len = {len(clients_to_route)}")
-    return _filter_instance(observation, must_dispatch), clients_to_route
+    log(f"clients_ordered {clients_to_route}, len = {len(clients_to_route)}, clients routed = {sum(new_mask)}")
+    return _filter_instance(observation, new_mask), clients_to_route
+    #return _filter_instance(observation, must_dispatch), clients_to_route
 
-def _remove_ordered_clients_modifiedknearest(observation: State, rng: np.random.Generator, iteration, clients_to_route, number_of_clients):
+#def _remove_ordered_clients_modifiedknearest(observation: State, rng: np.random.Generator, iteration, clients_to_route, number_of_clients):
+def _remove_ordered_clients_modifiedknearest(observation: State, rng: np.random.Generator, iteration, clients_to_route):
+
+    new_mask = np.copy(observation['must_dispatch'])
+    new_mask[0] = True
+    #log("----------------------------------------------")
+
+    # if iteration*number_of_clients > len(clients_to_route):
+    #     not_routed_clients = clients_to_route
+    #     log(f"not_routed_clients {not_routed_clients}")
+    # else:
+    #     not_routed_clients = clients_to_route[:int(iteration*number_of_clients)]
+    #     log(f"not_routed_clients {not_routed_clients}")
+    # for i in range(len(new_mask)):
+    #     if (i in clients_to_route) and (i not in not_routed_clients):
+    #         new_mask[i] = True
+
+    for i in range(len(new_mask)):
+        if (i in clients_to_route) and i != clients_to_route[iteration]:
+            new_mask[i] = True
+    log(f"cliente a eliminar = {clients_to_route[iteration]}, clients routed= {sum(new_mask)}")
+    return _filter_instance(observation, new_mask)
+
+def _remove_marked_clients(observation: State, rng: np.random.Generator, clients_to_route, marked_clients):
+
     new_mask = np.copy(observation['must_dispatch'])
     new_mask[0] = True
     log("----------------------------------------------")
-
-    if iteration*number_of_clients > len(clients_to_route):
-        not_routed_clients = clients_to_route
-        log(f"not_routed_clients {not_routed_clients}")
-    else:
-        not_routed_clients = clients_to_route[:int(iteration*number_of_clients)]
-        log(f"not_routed_clients {not_routed_clients}")
+    log(f"clientes marcados = {marked_clients}")
+    clients_to_eliminate = []
+    for client_position in marked_clients:
+        clients_to_eliminate.append(clients_to_route[client_position])
+    log(f"clients_to_eliminate = {clients_to_eliminate}")
     for i in range(len(new_mask)):
-        if (i in clients_to_route) and (i not in not_routed_clients):
+        if i in clients_to_route and i not in clients_to_eliminate:
             new_mask[i] = True
-
+    log(f"sum new mask = {sum(new_mask)}")
     return _filter_instance(observation, new_mask)
 
 STRATEGIES = dict(
@@ -919,5 +942,6 @@ STRATEGIES = dict(
     mustdispatch = _must_dispatch,
     removeorderedclients = _remove_ordered_clients,
     mustdispatchmodifiedknearest= _must_dispatch_modifiedknearest,
-    removeorderedclientsmodifiedknearest = _remove_ordered_clients_modifiedknearest
+    removeorderedclientsmodifiedknearest = _remove_ordered_clients_modifiedknearest,
+    removemarkedclients = _remove_marked_clients
 )
