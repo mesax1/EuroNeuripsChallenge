@@ -817,16 +817,7 @@ def _must_dispatch_modifiedknearest(observation: State, rng: np.random.Generator
     # Parameter to change
     c = 4  # Number of cycle iterations of k-nearest neighbors
     alpha = 2.0  # +- Hours to consider nearest neighbor
-    beta = 2  # Hours to TW closing, to mark customer as Obligatory
     k = 8  # K nearest neighbors to consider
-
-    def modify_mask_of_urgent(mask):
-        new_mask = np.copy(mask)
-        for i in range(len(observation['must_dispatch'])):
-            if observation['time_windows'][i][1] <= 3600 * beta:
-                new_mask[i] = True
-
-        return new_mask
 
     def modify_mask_of_neighbors(mask, k, alpha, get_furthest=False):
         new_mask = np.copy(mask)
@@ -853,8 +844,7 @@ def _must_dispatch_modifiedknearest(observation: State, rng: np.random.Generator
         c = 3
 
     if current_epoch == first_epoch:
-        k = 5
-        c = 2
+        k = 4
 
     new_mask = modify_mask_of_neighbors(new_mask, k, alpha, get_furthest=False)
 

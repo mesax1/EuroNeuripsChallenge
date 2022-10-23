@@ -168,7 +168,7 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, gamm
                 #initial_time_limit = epoch_tlim//3
                 #final_time_limit = epoch_tlim - initial_time_limit
                 initial_time_limit = 1
-                final_time_limt = 10
+                final_time_limt = 15
                 solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=initial_time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))
                 #partial_epoch_solution, partial_cost = solutions[-1]
                 partial_epoch_solution, best_cost = solutions[-1]
