@@ -113,6 +113,11 @@ if __name__ == "__main__":
         strategy = string[0]
         gamma = string[1]
 
+    elif solver_cmd[-1][:12] == "knearestlast":
+        string = solver_cmd[-1].split(",")
+        strategy = string[0]
+        alpha = string[1]
+
     else:
         strategy = solver_cmd[-1]
         # c = "NaN"
@@ -120,9 +125,9 @@ if __name__ == "__main__":
         # beta = "NaN"
         # k = "NaN"
         # omega = "NaN"
-        gamma = "NaN"
+        alpha = "NaN"
     # csv.write(f"\n{entries[int(args.instance)]};{args.instance};{sum(env.final_costs.values())};{strategy};c={c};"
     #           f"aplha={alpha};beta={beta};k={k};omega={omega}")
     csv = open("instance_info.txt", "a")
-    csv.write(f"\n{entries[int(args.instance)]};{args.instance};{sum(env.final_costs.values())};{strategy};gamma={gamma}")
+    csv.write(f"\n{entries[int(args.instance)]};{args.instance};{sum(env.final_costs.values())};{strategy};alpha={alpha}")
     csv.close()

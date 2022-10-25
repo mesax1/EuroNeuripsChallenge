@@ -99,7 +99,7 @@ def run_oracle(args, env):
 
 
 #def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, c=1, alpha=1, beta=1, k=1, omega=1 ):
-def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, gamma = 1):
+def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, alpha = 1):
 
     strategy = strategy or args.strategy
     strategy = STRATEGIES[strategy] if isinstance(strategy, str) else strategy
@@ -109,7 +109,7 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, gamm
     # beta_parameter = beta
     # k_parameter = k
     # omega_parameter = omega
-    gamma = gamma
+    alpha = alpha
 
     rng = np.random.default_rng(seed)
 
@@ -160,62 +160,34 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, gamm
                 solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=epoch_tlim, tmp_dir=args.tmp_dir, seed=args.solver_seed))
                 """
 
-                # epoch_instance_dispatch = STRATEGIES['modifiedknearest'](epoch_instance, rng, observation['current_epoch'],
-                #                                                          c_parameter, alpha_parameter, beta_parameter, k_parameter)
-                #epoch_instance_dispatch = STRATEGIES['knearestimedistance'](epoch_instance, rng, alpha_parameter)
-                #epoch_instance_dispatch = STRATEGIES['modifiedknearest'](epoch_instance, rng)
-                epoch_instance_dispatch, clients_to_route = STRATEGIES['mustdispatchmodifiedknearest'](epoch_instance, rng, static_info['start_epoch'], observation['current_epoch'])
-                #initial_time_limit = epoch_tlim//3
-                #final_time_limit = epoch_tlim - initial_time_limit
-                initial_time_limit = 1
-                final_time_limt = 15
-                solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=initial_time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))
-                #partial_epoch_solution, partial_cost = solutions[-1]
-                partial_epoch_solution, best_cost = solutions[-1]
+                if len(epoch_instance['must_dispatch']) >= 150:
+                    c = 5
+                elif len(epoch_instance['must_dispatch']) >= 100:
+                    c = 4
+                else:
+                    c = 3
+
+                if observation['current_epoch'] == static_info['start_epoch']:
+                    k = 4
+                else:
+                    k = 8
+
                 tolerance = 0.94
+                epoch_instance_dispatch, new_mask = STRATEGIES['mustdispatch'](epoch_instance, rng)
+                time_limit = int(epoch_tlim * tolerance/(c+2))
+                solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))
+                epoch_solution, best_cost = solutions[-1]
+                epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in epoch_solution]
 
+                for iteration in range(c+1):
+                    if sum(new_mask) < len(epoch_instance['must_dispatch']):
+                        epoch_instance_dispatch, new_mask = STRATEGIES['knearestlast'](epoch_instance, rng, k, epoch_solution, client_id, alpha)
+                        solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))
+                        epoch_solution, best_cost = solutions[-1]
+                        epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in epoch_solution]
+                        #log(f"k = {k}, c = {iteration + 1}")
+                        k -= 1
 
-                #log(f"not_routed_clients {not_routed_clients}")
-                runs_time_limit = int((epoch_tlim - initial_time_limit)*tolerance)
-                log(f"run_time_limit = {runs_time_limit}")
-                #number_of_clients = math.ceil(len(clients_to_route)/(runs_time_limit-1))
-                #log(f"run time limit {runs_time_limit}, number of clients {number_of_clients}, calc = {len(clients_to_route)}")
-                # log(f"observation['current_epoch']={observation['current_epoch']}, gamma= {gamma}")
-                # log(f"clients to eliminate = {number_of_clients}")
-                # log(f"not routed clients = {not_routed_clients}")
-                # log(f"best cost = {best_cost}")
-
-                #partial_epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in partial_epoch_solution]
-                marked_clients = []
-                for iteration in range(min(runs_time_limit-final_time_limt, len(clients_to_route))):
-                    # epoch_instance_dispatch = STRATEGIES['removeorderedclientsmodifiedknearest'](epoch_instance, rng, iteration, clients_to_route,
-                    #                                            number_of_clients)
-                    epoch_instance_dispatch = STRATEGIES['removeorderedclientsmodifiedknearest'](epoch_instance, rng, iteration, clients_to_route)
-
-                    fast_solution = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=1, tmp_dir=args.tmp_dir,
-                                                        seed=args.solver_seed))
-
-                    partial_epoch_solution, partial_cost = fast_solution[-1]
-                    if partial_cost < best_cost*gamma:
-                        log(f"partial cost {partial_cost}, less than best cost * gamma {best_cost*gamma} ")
-                        log("cliente eliminado")
-                        marked_clients.append(iteration)
-                        #log("----------------------------")
-                        #log(f"encontre una mejor solución en {partial_cost} en comparación con {best_cost} * gamma {best_cost*gamma}")
-                        #solutions = fast_solution
-                        #break
-
-                epoch_instance_dispatch = STRATEGIES['removemarkedclients'](epoch_instance, rng, clients_to_route, marked_clients)
-
-                solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=final_time_limt, tmp_dir=args.tmp_dir,
-                                                        seed=args.solver_seed))
-
-                #epoch_instance_dispatch = STRATEGIES['f2'](epoch_instance, rng, partial_epoch_solution, client_id, omega_parameter)
-                #solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=1, tmp_dir=args.tmp_dir, seed=args.solver_seed))            #------------------
-
-                #solutions = list(
-                    #solve_static_vrptw(epoch_instance_dispatch, time_limit=epoch_tlim, tmp_dir=args.tmp_dir,
-                                       #seed=args.solver_seed))
                 
             assert len(solutions) > 0, f"No solution found during epoch {observation['current_epoch']}"
             epoch_solution, cost = solutions[-1]
@@ -349,9 +321,14 @@ if __name__ == "__main__":
                     strategy = STRATEGIES[string[0]]
                     gamma = string[1]
 
+                elif args.strategy[:12] == "knearestlast":
+                    string = args.strategy.split(",")
+                    strategy = STRATEGIES[string[0]]
+                    alpha = string[1]
+
                 else:
                     strategy = STRATEGIES[args.strategy]
-                    gamma = 1
+                    alpha = 1
                     # c = 1
                     # alpha = 1
                     # beta = 1
@@ -359,7 +336,7 @@ if __name__ == "__main__":
                     # omega = 1
 
             #run_baseline(args, env, strategy=strategy, c=int(c), alpha=float(alpha), beta=float(beta), k=int(k), omega=float(omega))
-            run_baseline(args, env, strategy=strategy, gamma=float(gamma))
+            run_baseline(args, env, strategy=strategy, alpha=float(alpha))
 
         if args.instance is not None:
             log(tools.json_dumps_np(env.final_solutions))

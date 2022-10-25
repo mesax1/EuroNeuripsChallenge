@@ -25,6 +25,16 @@ source env/bin/activate
 
 ##### JOB COMMANDS ####
 #python results.py w
-python controller.py --instance $SLURM_ARRAY_TASK_ID --epoch_tlim 60 -- python solver.py --verbose --strategy modifiedknearest
+python controller.py --instance 0 --epoch_tlim 60 -- python solver.py --verbose --strategy knearestlast,1
+python controller.py --instance 0 --epoch_tlim 60 -- python solver.py --verbose --strategy knearestlast,1.2
+python controller.py --instance 0 --epoch_tlim 60 -- python solver.py --verbose --strategy knearestlast,1.4
+python controller.py --instance 0 --epoch_tlim 60 -- python solver.py --verbose --strategy knearestlast,1.6
+python controller.py --instance 0 --epoch_tlim 60 -- python solver.py --verbose --strategy knearestlast,1.8
+python controller.py --instance 0 --epoch_tlim 60 -- python solver.py --verbose --strategy knearestlast,2
+python controller.py --instance 0 --epoch_tlim 60 -- python solver.py --verbose --strategy knearestlast,2.2
+python controller.py --instance 0 --epoch_tlim 60 -- python solver.py --verbose --strategy knearestlast,2.4
+python controller.py --instance 0 --epoch_tlim 60 -- python solver.py --verbose --strategy knearestlast,2.6
+python controller.py --instance 0 --epoch_tlim 60 -- python solver.py --verbose --strategy knearestlast,2.8
+python controller.py --instance 0 --epoch_tlim 60 -- python solver.py --verbose --strategy knearestlast,3
 #python controller.py --instance $SLURM_ARRAY_TASK_ID --epoch_tlim 240 --static -- python solver.py --verbose --strategy modifiedknearest
 #python results.py r modifiedknearest
