@@ -99,7 +99,7 @@ def run_oracle(args, env):
 
 
 #def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, c=1, alpha=1, beta=1, k=1, omega=1 ):
-def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, alpha = 1):
+def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, alpha = 1, omega = 1):
 
     strategy = strategy or args.strategy
     strategy = STRATEGIES[strategy] if isinstance(strategy, str) else strategy
@@ -110,6 +110,7 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, alph
     # k_parameter = k
     # omega_parameter = omega
     alpha = alpha
+    omega = omega
 
     rng = np.random.default_rng(seed)
 
@@ -174,7 +175,7 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, alph
 
                 tolerance = 0.94
                 epoch_instance_dispatch, new_mask = STRATEGIES['mustdispatch'](epoch_instance, rng)
-                time_limit = int(epoch_tlim * tolerance/(c+2))
+                time_limit = int(epoch_tlim * tolerance/(c+3))
                 solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))
                 epoch_solution, best_cost = solutions[-1]
                 epoch_solution = [epoch_instance_dispatch['request_idx'][route] for route in epoch_solution]
@@ -188,6 +189,8 @@ def run_baseline(args, env, oracle_solution=None, strategy=None, seed=None, alph
                         #log(f"k = {k}, c = {iteration + 1}")
                         k -= 1
 
+                epoch_instance_dispatch = STRATEGIES['f2'](epoch_instance, rng, epoch_solution, client_id, omega)
+                solutions = list(solve_static_vrptw(epoch_instance_dispatch, time_limit=time_limit, tmp_dir=args.tmp_dir, seed=args.solver_seed))
                 
             assert len(solutions) > 0, f"No solution found during epoch {observation['current_epoch']}"
             epoch_solution, cost = solutions[-1]
@@ -325,6 +328,7 @@ if __name__ == "__main__":
                     string = args.strategy.split(",")
                     strategy = STRATEGIES[string[0]]
                     alpha = string[1]
+                    omega = string[2]
 
                 else:
                     strategy = STRATEGIES[args.strategy]
@@ -333,10 +337,10 @@ if __name__ == "__main__":
                     # alpha = 1
                     # beta = 1
                     # k = 1
-                    # omega = 1
+                    omega = 1
 
             #run_baseline(args, env, strategy=strategy, c=int(c), alpha=float(alpha), beta=float(beta), k=int(k), omega=float(omega))
-            run_baseline(args, env, strategy=strategy, alpha=float(alpha))
+            run_baseline(args, env, strategy=strategy, alpha=float(alpha), omega=float(omega))
 
         if args.instance is not None:
             log(tools.json_dumps_np(env.final_solutions))

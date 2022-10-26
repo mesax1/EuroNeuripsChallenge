@@ -588,7 +588,7 @@ def _all_must_dispatch(observation: State, rng: np.random.Generator):  # Si no h
 def _f2(observation: State, rng: np.random.Generator, partial_routes: list, client_ids: dict, omega: float):
     # log(partial_routes)
     # log(observation)
-    log(f"omega: {omega}")
+    # log(f"omega: {omega}")
     new_mask = np.copy(observation['must_dispatch'])  # REVISAR SI SI SE ESTA COPIANDO BIEN LA MASCARA
     new_mask[0] = True
     average_costs = []

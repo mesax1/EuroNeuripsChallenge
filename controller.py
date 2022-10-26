@@ -117,6 +117,7 @@ if __name__ == "__main__":
         string = solver_cmd[-1].split(",")
         strategy = string[0]
         alpha = string[1]
+        omega = string[2]
 
     else:
         strategy = solver_cmd[-1]
@@ -126,8 +127,9 @@ if __name__ == "__main__":
         # k = "NaN"
         # omega = "NaN"
         alpha = "NaN"
+        omega = "NaN"
     # csv.write(f"\n{entries[int(args.instance)]};{args.instance};{sum(env.final_costs.values())};{strategy};c={c};"
     #           f"aplha={alpha};beta={beta};k={k};omega={omega}")
     csv = open("instance_info.txt", "a")
-    csv.write(f"\n{entries[int(args.instance)]};{args.instance};{sum(env.final_costs.values())};{strategy};alpha={alpha}")
+    csv.write(f"\n{entries[int(args.instance)]};{args.instance};{sum(env.final_costs.values())};{strategy};alpha={alpha};omega={omega}")
     csv.close()
