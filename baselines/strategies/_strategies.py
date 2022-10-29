@@ -933,9 +933,10 @@ def _modified_knearest_last(observation: State, rng: np.random.Generator, k: int
                     #current_tw_end = observation['time_windows'][i][1]
                     visit_end = times_mask[i] + observation['service_times'][i]
                     for neighbor in neighbors:
-                        #neighbor_tw_start = observation['time_windows'][neighbor][0]
+                        neighbor_tw_start = observation['time_windows'][neighbor][0]
                         neighbor_tw_end = observation['time_windows'][neighbor][1]
-                        if neighbor_tw_end <= visit_end + alpha * 3600:
+                        if (neighbor_tw_end <= visit_end + alpha*3600 or neighbor_tw_start <= visit_end + alpha*3600) \
+                                and (neighbor_tw_end >= visit_end):
                             new_mask[neighbor] = True
         return new_mask
 
